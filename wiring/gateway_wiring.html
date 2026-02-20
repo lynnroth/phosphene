@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Theater LoRa Gateway Wiring — ESP32-S3 Feather</title>
+<style>
+  body { font-family: 'Segoe UI', sans-serif; background: #1a1a2e; color: #e0e0e0; margin: 0; padding: 20px; }
+  h1 { color: #e94560; text-align: center; font-size: 1.4em; margin-bottom: 4px; }
+  .subtitle { text-align: center; color: #a0a0b0; font-size: 0.85em; margin-bottom: 24px; }
+
+  .diagram { display: flex; justify-content: center; align-items: flex-start; gap: 40px; flex-wrap: wrap; }
+
+  .board {
+    background: #16213e;
+    border: 2px solid #0f3460;
+    border-radius: 10px;
+    padding: 14px 10px;
+    min-width: 160px;
+    position: relative;
+  }
+  .board h2 { text-align: center; font-size: 0.8em; margin: 0 0 10px 0; color: #e94560; text-transform: uppercase; letter-spacing: 1px; }
+  .board .pid { text-align: center; font-size: 0.68em; color: #606080; margin-bottom: 8px; }
+
+  .pin { display: flex; justify-content: space-between; align-items: center; margin: 3px 0; font-size: 0.75em; }
+  .pin-label { padding: 2px 6px; border-radius: 3px; font-weight: bold; }
+  .pin-value { color: #a0c4ff; font-size: 0.9em; }
+
+  .pwr  { background: #c0392b; color: #fff; }
+  .gnd  { background: #2c2c2c; color: #aaa; }
+  .sck  { background: #8e44ad; color: #fff; }
+  .mosi { background: #1a6b3a; color: #fff; }
+  .miso { background: #16537e; color: #fff; }
+  .cs   { background: #b7770d; color: #fff; }
+  .rst  { background: #5d4037; color: #fff; }
+  .irq  { background: #1a5276; color: #fff; }
+  .data { background: #1a5276; color: #fff; }
+
+  .connections {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 6px;
+    min-width: 220px;
+  }
+  .conn-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.72em;
+  }
+  .conn-from { text-align: right; min-width: 90px; font-weight: bold; }
+  .conn-arrow { color: #e94560; flex-shrink: 0; }
+  .conn-to { min-width: 90px; font-weight: bold; }
+  .conn-note { color: #606080; font-size: 0.9em; }
+
+  .section-title {
+    text-align: center;
+    font-size: 0.72em;
+    color: #e94560;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin: 4px 0 6px 0;
+    border-bottom: 1px solid #0f3460;
+    padding-bottom: 4px;
+  }
+
+  .note-box {
+    background: #0f3460;
+    border-left: 3px solid #e94560;
+    border-radius: 4px;
+    padding: 10px 14px;
+    margin: 20px auto;
+    max-width: 900px;
+    font-size: 0.78em;
+    line-height: 1.7;
+  }
+  .note-box b { color: #e94560; }
+
+  .power-note {
+    background: #1a0a0a;
+    border-left: 3px solid #c0392b;
+    border-radius: 4px;
+    padding: 10px 14px;
+    margin: 10px auto;
+    max-width: 900px;
+    font-size: 0.78em;
+    line-height: 1.7;
+  }
+  .power-note b { color: #e74c3c; }
+</style>
+</head>
+<body>
+
+<h1>Theater LoRa — Gateway Wiring</h1>
+<div class="subtitle">Adafruit ESP32-S3 Feather (#5477) + WIZ5500 Ethernet (#6348) + RFM95W LoRa (#3072)</div>
+
+<div class="diagram">
+
+  <!-- FEATHER BOARD -->
+  <div class="board" style="min-width:180px">
+    <h2>ESP32-S3 Feather</h2>
+    <div class="pid">#5477</div>
+
+    <div class="section-title">Power</div>
+    <div class="pin"><span class="pin-label pwr">3.3V</span><span class="pin-value">→ both breakouts</span></div>
+    <div class="pin"><span class="pin-label gnd">GND</span><span class="pin-value">→ both breakouts</span></div>
+    <div class="pin"><span class="pin-label pwr">USB-C</span><span class="pin-value">power only</span></div>
+
+    <div class="section-title">SPI Bus 1 — Ethernet</div>
+    <div class="pin"><span class="pin-label sck">SCK</span><span class="pin-value">→ WIZ SCK</span></div>
+    <div class="pin"><span class="pin-label mosi">MOSI</span><span class="pin-value">→ WIZ MOSI</span></div>
+    <div class="pin"><span class="pin-label miso">MISO</span><span class="pin-value">→ WIZ MISO</span></div>
+    <div class="pin"><span class="pin-label cs">D9</span><span class="pin-value">→ WIZ CS</span></div>
+
+    <div class="section-title">SPI Bus 2 — LoRa</div>
+    <div class="pin"><span class="pin-label sck">D10</span><span class="pin-value">→ RFM SCK</span></div>
+    <div class="pin"><span class="pin-label mosi">D11</span><span class="pin-value">→ RFM MOSI</span></div>
+    <div class="pin"><span class="pin-label miso">D12</span><span class="pin-value">→ RFM MISO</span></div>
+    <div class="pin"><span class="pin-label cs">D13</span><span class="pin-value">→ RFM CS</span></div>
+    <div class="pin"><span class="pin-label rst">A0</span><span class="pin-value">→ RFM RST</span></div>
+    <div class="pin"><span class="pin-label irq">A1</span><span class="pin-value">→ RFM G0/IRQ</span></div>
+  </div>
+
+  <!-- CONNECTION TABLES -->
+  <div style="display:flex; flex-direction:column; gap:20px;">
+
+    <div class="connections">
+      <div class="section-title">WIZ5500 Ethernet (#6348)</div>
+      <div class="conn-row">
+        <span class="conn-from" style="color:#c0392b">3.3V</span>
+        <span class="conn-arrow">→</span>
+        <span class="conn-to" style="color:#c0392b">VIN</span>
+      </div>
+      <div class="conn-row">
+        <span class="conn-from" style="color:#888">GND</span>
+        <span class="conn-arrow">→</span>
+        <span class="conn-to" style="color:#888">GND</span>
+      </div>
+      <div class="conn-row">
+        <span class="conn-from" style="color:#8e44ad">SCK</span>
+        <span class="conn-arrow">→</span>
+        <span class="conn-to" style="color:#8e44ad">SCK</span>
+      </div>
+      <div class="conn-row">
+        <span class="conn-from" style="color:#1a6b3a">MOSI</span>
+        <span class="conn-arrow">→</span>
+        <span class="conn-to" style="color:#1a6b3a">MOSI</span>
+      </div>
+      <div class="conn-row">
+        <span class="conn-from" style="color:#16537e">MISO</span>
+        <span class="conn-arrow">→</span>
+        <span class="conn-to" style="color:#16537e">MISO</span>
+      </div>
+      <div class="conn-row">
+        <span class="conn-from" style="color:#b7770d">D9</span>
+        <span class="conn-arrow">→</span>
+        <span class="conn-to" style="color:#b7770d">CS</span>
+      </div>
+      <div class="conn-row" style="margin-top:6px">
+        <span style="color:#606080; font-size:0.9em">Ethernet cable → network switch / Eos console</span>
+      </div>
+    </div>
+
+    <div class="connections">
+      <div class="section-title">RFM95W LoRa (#3072)</div>
+      <div class="conn-row">
+        <span class="conn-from" style="color:#c0392b">3.3V</span>
+        <span class="conn-arrow">→</span>
+        <span class="conn-to" style="color:#c0392b">VIN</span>
+      </div>
+      <div class="conn-row">
+        <span class="conn-from" style="color:#888">GND</span>
+        <span class="conn-arrow">→</span>
+        <span class="conn-to" style="color:#888">GND</span>
+      </div>
+      <div class="conn-row">
+        <span class="conn-from" style="color:#8e44ad">D10</span>
+        <span class="conn-arrow">→</span>
+        <span class="conn-to" style="color:#8e44ad">SCK</span>
+      </div>
+      <div class="conn-row">
+        <span class="conn-from" style="color:#1a6b3a">D11</span>
+        <span class="conn-arrow">→</span>
+        <span class="conn-to" style="color:#1a6b3a">MOSI</span>
+      </div>
+      <div class="conn-row">
+        <span class="conn-from" style="color:#16537e">D12</span>
+        <span class="conn-arrow">→</span>
+        <span class="conn-to" style="color:#16537e">MISO</span>
+      </div>
+      <div class="conn-row">
+        <span class="conn-from" style="color:#b7770d">D13</span>
+        <span class="conn-arrow">→</span>
+        <span class="conn-to" style="color:#b7770d">CS</span>
+      </div>
+      <div class="conn-row">
+        <span class="conn-from" style="color:#795548">A0</span>
+        <span class="conn-arrow">→</span>
+        <span class="conn-to" style="color:#795548">RST</span>
+      </div>
+      <div class="conn-row">
+        <span class="conn-from" style="color:#1a5276">A1</span>
+        <span class="conn-arrow">→</span>
+        <span class="conn-to" style="color:#1a5276">G0 (IRQ)</span>
+      </div>
+      <div class="conn-row" style="margin-top:6px">
+        <span style="color:#606080; font-size:0.9em">Spring antenna (#4269) → uFL connector</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="power-note">
+  <b>⚡ Power:</b> Gateway is USB-C powered only — no battery needed. Plug into any USB-C power supply or computer backstage.
+  The ESP32-S3 Feather's onboard regulator provides 3.3V to both breakout boards.
+</div>
+
+<div class="note-box">
+  <b>SPI Bus Assignment:</b> The ESP32-S3 uses two independent hardware SPI buses.
+  The primary bus (board.SCK / MOSI / MISO) drives the WIZ5500 Ethernet. A second software-configurable
+  SPI bus on D10/D11/D12 drives the RFM95W LoRa. Both run simultaneously with zero contention.<br><br>
+  <b>CircuitPython pin names:</b> board.SCK, board.MOSI, board.MISO for Ethernet bus.
+  board.D10, board.D11, board.D12 for LoRa bus. board.D9=Eth CS, board.D13=LoRa CS,
+  board.A0=LoRa RST, board.A1=LoRa IRQ.<br><br>
+  <b>Setup:</b> Install CircuitPython 9.x for Feather ESP32-S3 4MB/2MB PSRAM from circuitpython.org.
+  Libraries needed: adafruit_rfm9x, adafruit_wiznet5k, adafruit_bus_device.
+</div>
+
+</body>
+</html>

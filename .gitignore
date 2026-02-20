@@ -1,0 +1,16 @@
+# CircuitPython board filesystem artifacts
+*.mpy
+__pycache__/
+.DS_Store
+Thumbs.db
+
+# Editor artifacts
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Secrets / local config (if you ever split settings out)
+secrets.py
+settings.toml

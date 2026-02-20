@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Theater LoRa Endpoint Wiring — ESP32-S3 Feather</title>
+<style>
+  body { font-family: 'Segoe UI', sans-serif; background: #1a1a2e; color: #e0e0e0; margin: 0; padding: 20px; }
+  h1 { color: #e94560; text-align: center; font-size: 1.4em; margin-bottom: 4px; }
+  .subtitle { text-align: center; color: #a0a0b0; font-size: 0.85em; margin-bottom: 24px; }
+
+  .diagram { display: flex; justify-content: center; align-items: flex-start; gap: 40px; flex-wrap: wrap; }
+
+  .board {
+    background: #16213e;
+    border: 2px solid #0f3460;
+    border-radius: 10px;
+    padding: 14px 10px;
+    min-width: 165px;
+    position: relative;
+  }
+  .board h2 { text-align: center; font-size: 0.8em; margin: 0 0 10px 0; color: #e94560; text-transform: uppercase; letter-spacing: 1px; }
+  .board .pid { text-align: center; font-size: 0.68em; color: #606080; margin-bottom: 8px; }
+
+  .pin { display: flex; justify-content: space-between; align-items: center; margin: 3px 0; font-size: 0.75em; gap: 6px; }
+  .pin-label { padding: 2px 6px; border-radius: 3px; font-weight: bold; white-space: nowrap; }
+  .pin-value { color: #a0c4ff; font-size: 0.9em; text-align: right; }
+
+  .pwr   { background: #c0392b; color: #fff; }
+  .pwr5  { background: #922b21; color: #fff; }
+  .gnd   { background: #2c2c2c; color: #aaa; }
+  .sck   { background: #8e44ad; color: #fff; }
+  .mosi  { background: #1a6b3a; color: #fff; }
+  .miso  { background: #16537e; color: #fff; }
+  .cs    { background: #b7770d; color: #fff; }
+  .rst   { background: #5d4037; color: #fff; }
+  .irq   { background: #1a5276; color: #fff; }
+  .data  { background: #0d6b4e; color: #fff; }
+  .usb   { background: #7d3c98; color: #fff; }
+  .batt  { background: #6e2f1a; color: #fff; }
+
+  .connections {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
+    min-width: 200px;
+  }
+  .conn-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.72em;
+  }
+  .conn-from { text-align: right; min-width: 95px; font-weight: bold; }
+  .conn-arrow { color: #e94560; flex-shrink: 0; }
+  .conn-to { min-width: 95px; font-weight: bold; }
+
+  .section-title {
+    text-align: center;
+    font-size: 0.72em;
+    color: #e94560;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin: 4px 0 6px 0;
+    border-bottom: 1px solid #0f3460;
+    padding-bottom: 4px;
+  }
+
+  .note-box {
+    background: #0f3460;
+    border-left: 3px solid #e94560;
+    border-radius: 4px;
+    padding: 10px 14px;
+    margin: 20px auto;
+    max-width: 960px;
+    font-size: 0.78em;
+    line-height: 1.7;
+  }
+  .note-box b { color: #e94560; }
+
+  .power-note {
+    background: #1a0a0a;
+    border-left: 3px solid #c0392b;
+    border-radius: 4px;
+    padding: 10px 14px;
+    margin: 10px auto;
+    max-width: 960px;
+    font-size: 0.78em;
+    line-height: 1.7;
+  }
+  .power-note b { color: #e74c3c; }
+
+  .warn-box {
+    background: #2d1a00;
+    border-left: 3px solid #f39c12;
+    border-radius: 4px;
+    padding: 10px 14px;
+    margin: 10px auto;
+    max-width: 960px;
+    font-size: 0.78em;
+    line-height: 1.7;
+  }
+  .warn-box b { color: #f39c12; }
+</style>
+</head>
+<body>
+
+<h1>Theater LoRa — Endpoint Wiring</h1>
+<div class="subtitle">Adafruit ESP32-S3 Feather (#5477) + RFM95W LoRa (#3072) + bq25185 5V Boost (#6106) + NeoPixels<br>
+× 2 endpoints — set DEVICE_ID = 1 on one, DEVICE_ID = 2 on the other</div>
+
+<div class="diagram">
+
+  <!-- FEATHER -->
+  <div class="board" style="min-width:175px">
+    <h2>ESP32-S3 Feather</h2>
+    <div class="pid">#5477</div>
+
+    <div class="section-title">Power In</div>
+    <div class="pin"><span class="pin-label batt">JST</span><span class="pin-value">← LiPo battery</span></div>
+    <div class="pin"><span class="pin-label usb">USB-C</span><span class="pin-value">programming only</span></div>
+
+    <div class="section-title">Power Out</div>
+    <div class="pin"><span class="pin-label pwr">3.3V</span><span class="pin-value">→ RFM95W VIN</span></div>
+    <div class="pin"><span class="pin-label gnd">GND</span><span class="pin-value">→ RFM, bq, pixels</span></div>
+
+    <div class="section-title">SPI — LoRa</div>
+    <div class="pin"><span class="pin-label sck">SCK</span><span class="pin-value">→ RFM SCK</span></div>
+    <div class="pin"><span class="pin-label mosi">MOSI</span><span class="pin-value">→ RFM MOSI</span></div>
+    <div class="pin"><span class="pin-label miso">MISO</span><span class="pin-value">→ RFM MISO</span></div>
+    <div class="pin"><span class="pin-label cs">D9</span><span class="pin-value">→ RFM CS</span></div>
+    <div class="pin"><span class="pin-label rst">D10</span><span class="pin-value">→ RFM RST</span></div>
+    <div class="pin"><span class="pin-label irq">D11</span><span class="pin-value">→ RFM G0/IRQ</span></div>
+
+    <div class="section-title">NeoPixels</div>
+    <div class="pin"><span class="pin-label data">D5</span><span class="pin-value">→ NeoPixel DATA</span></div>
+  </div>
+
+  <!-- CONNECTION TABLES -->
+  <div style="display:flex; flex-direction:column; gap:20px;">
+
+    <div class="connections">
+      <div class="section-title">RFM95W LoRa (#3072)</div>
+      <div class="conn-row">
+        <span class="conn-from" style="color:#c0392b">3.3V</span>
+        <span class="conn-arrow">→</span>
+        <span class="conn-to" style="color:#c0392b">VIN</span>
+      </div>
+      <div class="conn-row">
+        <span class="conn-from" style="color:#888">GND</span>
+        <span class="conn-arrow">→</span>
+        <span class="conn-to" style="color:#888">GND</span>
+      </div>
+      <div class="conn-row">
+        <span class="conn-from" style="color:#8e44ad">SCK</span>
+        <span class="conn-arrow">→</span>
+        <span class="conn-to" style="color:#8e44ad">SCK</span>
+      </div>
+      <div class="conn-row">
+        <span class="conn-from" style="color:#1a6b3a">MOSI</span>
+        <span class="conn-arrow">→</span>
+        <span class="conn-to" style="color:#1a6b3a">MOSI</span>
+      </div>
+      <div class="conn-row">
+        <span class="conn-from" style="color:#16537e">MISO</span>
+        <span class="conn-arrow">→</span>
+        <span class="conn-to" style="color:#16537e">MISO</span>
+      </div>
+      <div class="conn-row">
+        <span class="conn-from" style="color:#b7770d">D9</span>
+        <span class="conn-arrow">→</span>
+        <span class="conn-to" style="color:#b7770d">CS</span>
+      </div>
+      <div class="conn-row">
+        <span class="conn-from" style="color:#795548">D10</span>
+        <span class="conn-arrow">→</span>
+        <span class="conn-to" style="color:#795548">RST</span>
+      </div>
+      <div class="conn-row">
+        <span class="conn-from" style="color:#1a5276">D11</span>
+        <span class="conn-arrow">→</span>
+        <span class="conn-to" style="color:#1a5276">G0 (IRQ)</span>
+      </div>
+      <div class="conn-row" style="margin-top:4px">
+        <span style="color:#606080; font-size:0.9em">Spring antenna (#4269) → uFL connector</span>
+      </div>
+    </div>
+
+    <div class="connections">
+      <div class="section-title">bq25185 5V Boost (#6106)</div>
+      <div class="conn-row">
+        <span class="conn-from" style="color:#6e2f1a">LiPo +</span>
+        <span class="conn-arrow">→</span>
+        <span class="conn-to" style="color:#6e2f1a">BATT (JST)</span>
+      </div>
+      <div class="conn-row">
+        <span class="conn-from" style="color:#888">LiPo −</span>
+        <span class="conn-arrow">→</span>
+        <span class="conn-to" style="color:#888">GND</span>
+      </div>
+      <div class="conn-row" style="margin-top:4px">
+        <span class="conn-from" style="color:#922b21">5V OUT +</span>
+        <span class="conn-arrow">→</span>
+        <span class="conn-to" style="color:#922b21">NeoPixel 5V</span>
+      </div>
+      <div class="conn-row">
+        <span class="conn-from" style="color:#888">5V OUT −</span>
+        <span class="conn-arrow">→</span>
+        <span class="conn-to" style="color:#888">NeoPixel GND</span>
+      </div>
+      <div class="conn-row" style="margin-top:4px">
+        <span style="color:#606080; font-size:0.9em">USB-C on bq25185 → charge LiPo backstage</span>
+      </div>
+    </div>
+
+    <div class="connections">
+      <div class="section-title">NeoPixel Strip (40 pixels)</div>
+      <div class="conn-row">
+        <span class="conn-from" style="color:#922b21">bq 5V OUT</span>
+        <span class="conn-arrow">→</span>
+        <span class="conn-to" style="color:#922b21">5V / VCC</span>
+      </div>
+      <div class="conn-row">
+        <span class="conn-from" style="color:#888">GND</span>
+        <span class="conn-arrow">→</span>
+        <span class="conn-to" style="color:#888">GND</span>
+      </div>
+      <div class="conn-row">
+        <span class="conn-from" style="color:#0d6b4e">D5</span>
+        <span class="conn-arrow">→</span>
+        <span class="conn-to" style="color:#0d6b4e">DATA IN</span>
+      </div>
+      <div class="conn-row" style="margin-top:4px">
+        <span style="color:#606080; font-size:0.9em">300Ω resistor inline on DATA wire recommended</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="power-note">
+  <b>⚡ Power Architecture:</b> Two separate power paths share a common ground.
+  <br>• <b>LiPo → Feather JST</b>: powers the ESP32-S3 and RFM95W via the Feather's onboard 3.3V regulator.
+  <br>• <b>Same LiPo → bq25185 BATT port</b>: boosts to regulated 5V for the NeoPixel strip.
+  <br>• <b>Charge via bq25185 USB-C only</b> when in use backstage. Do not charge both USB ports simultaneously.
+  <br>• The Feather USB-C port is for programming/code updates only — disconnect before show.
+</div>
+
+<div class="warn-box">
+  <b>⚠️ Sharing one LiPo between Feather and bq25185:</b> Connect the battery to the Feather JST normally.
+  Then tap the battery voltage from the Feather's BAT pin (or solder a second wire to the JST) to feed
+  the bq25185 BATT input. Both charging circuits share the same cell — only plug in the bq25185 USB-C
+  to charge (not the Feather USB-C at the same time) to avoid two chargers on one cell.
+  Alternatively use two separate LiPo batteries for fully independent power paths.
+</div>
+
+<div class="note-box">
+  <b>CircuitPython pin names on ESP32-S3 Feather:</b><br>
+  SPI bus: board.SCK, board.MOSI, board.MISO (primary hardware SPI)<br>
+  RFM CS: board.D9 &nbsp;|&nbsp; RFM RST: board.D10 &nbsp;|&nbsp; RFM IRQ: board.D11<br>
+  NeoPixel data: board.D5<br><br>
+  <b>Libraries needed:</b> adafruit_rfm9x, neopixel, adafruit_pixelbuf<br><br>
+  <b>Setup:</b> Install CircuitPython 9.x for "Adafruit Feather ESP32-S3 4MB Flash / 2MB PSRAM" from circuitpython.org.
+  Set DEVICE_ID = 1 on first endpoint, DEVICE_ID = 2 on second. Set NUM_PIXELS = 40.
+</div>
+
+</body>
+</html>
