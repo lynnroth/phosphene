@@ -49,7 +49,7 @@ The **endpoints** are battery-powered, fully wireless, and hidden in props or ri
 |---|---|---|
 | 0 | Device ID | 0 = broadcast, 1–5 = specific endpoint |
 | 1 | Command ID | Auto-increments, used for dedup |
-| 2 | Preset | 0–25, see preset map below |
+| 2 | Preset | 0–51, see preset map below |
 | 3 | Intensity | 0–255 |
 | 4 | Red | 0–255 |
 | 5 | Green | 0–255 |
@@ -59,34 +59,37 @@ The **endpoints** are battery-powered, fully wireless, and hidden in props or ri
 
 ## Presets
 
+Each preset occupies 5 DMX values.
+
 | DMX Range | # | Effect |
 |---|---|---|
-| 0–9 | 0 | Blackout |
-| 10–19 | 1 | Sparkle |
-| 20–29 | 2 | Chase |
-| 30–39 | 3 | Fade (breathe) |
-| 40–49 | 4 | Solid |
-| 50–59 | 5 | Twinkle on Solid |
-| 60–69 | 6 | Strobe |
-| 70–79 | 7 | Meteor |
-| 80–89 | 8 | Fire |
-| 90–99 | 9 | Rainbow |
-| 100–109 | 10 | Lightning |
-| 110–119 | 11 | Marquee |
-| 120–129 | 12 | Candle |
-| 130–139 | 13 | Color Wipe |
-| 140–149 | 14 | Heartbeat |
-| 150–159 | 15 | Alarm |
-| 160–169 | 16 | Comet |
-| 170–179 | 17 | Ripple |
-| 180–189 | 18 | Scanner (Cylon) |
-| 190–199 | 19 | Bubbles |
-| 200–209 | 20 | Campfire |
-| 210–219 | 21 | Confetti |
-| 220–229 | 22 | Wave |
-| 230–239 | 23 | Flicker |
-| 240–249 | 24 | Theater Chase |
-| 250–255 | 25 | Rainbow Chase |
+| 0–4 | 0 | Blackout |
+| 5–9 | 1 | Sparkle |
+| 10–14 | 2 | Chase |
+| 15–19 | 3 | Fade (breathe) |
+| 20–24 | 4 | Solid |
+| 25–29 | 5 | Twinkle on Solid |
+| 30–34 | 6 | Strobe |
+| 35–39 | 7 | Meteor |
+| 40–44 | 8 | Fire |
+| 45–49 | 9 | Rainbow |
+| 50–54 | 10 | Lightning |
+| 55–59 | 11 | Marquee |
+| 60–64 | 12 | Candle |
+| 65–69 | 13 | Color Wipe |
+| 70–74 | 14 | Heartbeat |
+| 75–79 | 15 | Alarm |
+| 80–84 | 16 | Comet |
+| 85–89 | 17 | Ripple |
+| 90–94 | 18 | Scanner (Cylon) |
+| 95–99 | 19 | Bubbles |
+| 100–104 | 20 | Campfire |
+| 105–109 | 21 | Confetti |
+| 110–114 | 22 | Wave |
+| 115–119 | 23 | Flicker |
+| 120–124 | 24 | Theater Chase |
+| 125–129 | 25 | Rainbow Chase |
+| 130–134 | 26 | Aurora |
 
 ## Eos Patch
 

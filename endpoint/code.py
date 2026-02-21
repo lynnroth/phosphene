@@ -118,6 +118,7 @@ PRESET_WAVE              = 22   # sine wave of brightness rolls down the strip
 PRESET_FLICKER           = 23   # random intensity drops, like a bad fluorescent
 PRESET_THEATER_CHASE     = 24   # classic every-third-pixel marquee chase
 PRESET_RAINBOW_CHASE     = 25   # rainbow marquee
+PRESET_AURORA            = 26   # northern lights, slow drifting colors
 
 # =============================================================================
 # HARDWARE INIT
@@ -239,6 +240,9 @@ wave_offset       = 0.0
 
 # Flicker state - per-pixel flicker value
 flicker_levels    = [1.0] * NUM_PIXELS
+
+# Aurora state - per-pixel hue
+aurora_hues       = [random.random() for _ in range(NUM_PIXELS)]
 
 # =============================================================================
 # HELPERS
@@ -1024,6 +1028,25 @@ def effect_theater_chase():
     pixels.show()
 
 
+def effect_aurora():
+    """
+    Northern lights: slow drifting hues create an organic, dreamy atmosphere.
+    Speed controls drift rate. Intensity controls brightness.
+    Color is ignored (it's an aurora!).
+    """
+    global aurora_hues
+
+    drift = speed_to_rate(current_speed, 0.0005, 0.008)
+    scale = current_intensity / 255.0
+
+    for i in range(NUM_PIXELS):
+        aurora_hues[i] = (aurora_hues[i] + drift + random.uniform(-0.003, 0.003)) % 1.0
+        r, g, b = hsv_to_rgb(aurora_hues[i], 0.6, scale)
+        pixels[i] = (r, g, b)
+
+    pixels.show()
+
+
 # Effect dispatch table
 EFFECTS = {
     PRESET_BLACKOUT:         effect_blackout,
@@ -1052,6 +1075,7 @@ EFFECTS = {
     PRESET_FLICKER:          effect_flicker,
     PRESET_THEATER_CHASE:    effect_theater_chase,
     PRESET_RAINBOW_CHASE:    effect_rainbow_chase,
+    PRESET_AURORA:           effect_aurora,
 }
 
 # =============================================================================
@@ -1130,6 +1154,7 @@ def apply_packet(packet):
         global confetti_tick
         global wave_offset
         global flicker_levels
+        global aurora_hues
 
         strobe_on      = False
         strobe_tick    = 0
@@ -1160,6 +1185,7 @@ def apply_packet(packet):
         confetti_tick  = 0
         wave_offset    = 0.0
         flicker_levels = [1.0] * NUM_PIXELS
+        aurora_hues    = [random.random() for _ in range(NUM_PIXELS)]
 
     current_preset    = preset
     current_intensity = intensity
