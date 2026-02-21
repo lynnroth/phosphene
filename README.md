@@ -110,14 +110,14 @@ Default patch:
 ## Setup
 
 ### Gateway
-1. Install CircuitPython 9.x for **Adafruit Feather ESP32-S3 4MB/2MB PSRAM** from [circuitpython.org](https://circuitpython.org/board/adafruit_feather_esp32s3/)
+1. Install CircuitPython 10.1.1 for **Adafruit Feather ESP32-S3 4MB/2MB PSRAM** from [circuitpython.org](https://circuitpython.org/board/adafruit_feather_esp32s3/)
 2. Install libraries into `/lib`: `adafruit_rfm9x`, `adafruit_wiznet5k`, `adafruit_bus_device`
 3. Edit `gateway/code.py`: set `STATIC_IP` to match your network, set `SACN_UNIVERSE` to match Eos output
 4. Copy `gateway/code.py` to the board as `code.py`
 5. In Eos: **Setup > Show > Output > Add sACN universe** pointing to the gateway's IP
 
 ### Endpoints
-1. Install CircuitPython 9.x for **Adafruit Feather ESP32-S3 4MB/2MB PSRAM**
+1. Install CircuitPython 10.1.1 for **Adafruit Feather ESP32-S3 4MB/2MB PSRAM**
 2. Install libraries into `/lib`: `adafruit_rfm9x`, `neopixel`, `adafruit_pixelbuf`
 3. Edit `endpoint/code.py`: set `DEVICE_ID` (1 on first board, 2 on second), set `NUM_PIXELS`
 4. Copy `endpoint/code.py` to each board as `code.py`

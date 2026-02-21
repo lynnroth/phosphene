@@ -32,7 +32,7 @@
 #     Antenna: spring antenna (#4269) to uFL connector
 #
 # SETUP:
-#   1. Install CircuitPython 9.x for "Adafruit Feather ESP32-S3 4MB Flash 2MB PSRAM"
+#   1. Install CircuitPython 10.1.1 for "Adafruit Feather ESP32-S3 4MB Flash 2MB PSRAM"
 #      from https://circuitpython.org/board/adafruit_feather_esp32s3/
 #   2. Install these libraries into /lib on the board:
 #        adafruit_rfm9x.mpy
