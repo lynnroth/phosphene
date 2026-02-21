@@ -130,6 +130,23 @@
   .parts-list td:first-child { color: #a0c4ff; }
   .parts-list td:last-child { color: #606080; text-align: right; }
 
+  .pin-ref {
+    background: #16213e;
+    border-radius: 4px;
+    padding: 12px 16px;
+    margin: 16px auto;
+    max-width: 900px;
+    font-size: 0.78em;
+  }
+  .pin-ref h3 { color: #e94560; margin: 0 0 8px 0; font-size: 1em; }
+  .pin-ref table { width: 100%; border-collapse: collapse; }
+  .pin-ref th { color: #e94560; text-align: left; padding: 6px 8px; border-bottom: 1px solid #0f3460; }
+  .pin-ref td { padding: 4px 8px; }
+  .pin-ref td:first-child { color: #a0c4ff; font-family: monospace; }
+  .pin-ref td:nth-child(2) { color: #1abc9c; font-weight: bold; }
+  .pin-ref td:nth-child(3) { color: #e0e0e0; }
+  .pin-ref td:last-child { color: #606080; font-size: 0.9em; }
+
   .spi-diagram {
     background: #16213e;
     border-radius: 4px;
@@ -174,6 +191,23 @@
   <tr><td>Ethernet cable (to switch or Eos console)</td><td>—</td></tr>
   <tr><td>USB-C cable for power/programming</td><td>—</td></tr>
   <tr><td>Jumper wires (female-to-female recommended)</td><td>—</td></tr>
+</table>
+</div>
+
+<div class="pin-ref">
+<h3>ESP32-S3 Feather Pin Reference</h3>
+<table>
+  <tr><th>CircuitPython</th><th>GPIO</th><th>Function</th><th>Notes</th></tr>
+  <tr><td><code>board.SCK</code></td><td>GPIO 36</td><td>SPI Clock</td><td>Ethernet SPI bus</td></tr>
+  <tr><td><code>board.MOSI</code></td><td>GPIO 35</td><td>SPI MOSI</td><td>Ethernet SPI TX</td></tr>
+  <tr><td><code>board.MISO</code></td><td>GPIO 37</td><td>SPI MISO</td><td>Ethernet SPI RX</td></tr>
+  <tr><td><code>board.D9</code></td><td>GPIO 9</td><td>Ethernet CS</td><td>WIZ5500 chip select</td></tr>
+  <tr><td><code>board.D10</code></td><td>GPIO 10</td><td>LoRa SCK</td><td>Secondary SPI clock</td></tr>
+  <tr><td><code>board.D11</code></td><td>GPIO 11</td><td>LoRa MOSI</td><td>Secondary SPI TX</td></tr>
+  <tr><td><code>board.D12</code></td><td>GPIO 12</td><td>LoRa MISO</td><td>Secondary SPI RX</td></tr>
+  <tr><td><code>board.D13</code></td><td>GPIO 13</td><td>LoRa CS</td><td>RFM95W chip select</td></tr>
+  <tr><td><code>board.A0</code></td><td>GPIO 17</td><td>LoRa RST</td><td>Reset</td></tr>
+  <tr><td><code>board.A1</code></td><td>GPIO 18</td><td>LoRa IRQ</td><td>G0/DIO0 interrupt</td></tr>
 </table>
 </div>
 
@@ -222,25 +256,25 @@
         <span class="conn-wire">black</span>
       </div>
       <div class="conn-row">
-        <span class="conn-from" style="color:#8e44ad">Feather SCK</span>
+        <span class="conn-from" style="color:#8e44ad">SCK <span style="color:#1abc9c">(GPIO36)</span></span>
         <span class="conn-arrow">→</span>
         <span class="conn-to" style="color:#8e44ad">SCK</span>
         <span class="conn-wire">orange</span>
       </div>
       <div class="conn-row">
-        <span class="conn-from" style="color:#1a6b3a">Feather MOSI</span>
+        <span class="conn-from" style="color:#1a6b3a">MOSI <span style="color:#1abc9c">(GPIO35)</span></span>
         <span class="conn-arrow">→</span>
         <span class="conn-to" style="color:#1a6b3a">MOSI</span>
         <span class="conn-wire">green</span>
       </div>
       <div class="conn-row">
-        <span class="conn-from" style="color:#16537e">Feather MISO</span>
+        <span class="conn-from" style="color:#16537e">MISO <span style="color:#1abc9c">(GPIO37)</span></span>
         <span class="conn-arrow">→</span>
         <span class="conn-to" style="color:#16537e">MISO</span>
         <span class="conn-wire">blue</span>
       </div>
       <div class="conn-row">
-        <span class="conn-from" style="color:#b7770d">Feather D9</span>
+        <span class="conn-from" style="color:#b7770d">D9 <span style="color:#1abc9c">(GPIO9)</span></span>
         <span class="conn-arrow">→</span>
         <span class="conn-to" style="color:#b7770d">CS</span>
         <span class="conn-wire">yellow</span>
@@ -266,37 +300,37 @@
         <span class="conn-wire">black</span>
       </div>
       <div class="conn-row">
-        <span class="conn-from" style="color:#8e44ad">Feather D10</span>
+        <span class="conn-from" style="color:#8e44ad">D10 <span style="color:#1abc9c">(GPIO10)</span></span>
         <span class="conn-arrow">→</span>
         <span class="conn-to" style="color:#8e44ad">SCK</span>
         <span class="conn-wire">orange</span>
       </div>
       <div class="conn-row">
-        <span class="conn-from" style="color:#1a6b3a">Feather D11</span>
+        <span class="conn-from" style="color:#1a6b3a">D11 <span style="color:#1abc9c">(GPIO11)</span></span>
         <span class="conn-arrow">→</span>
         <span class="conn-to" style="color:#1a6b3a">MOSI</span>
         <span class="conn-wire">green</span>
       </div>
       <div class="conn-row">
-        <span class="conn-from" style="color:#16537e">Feather D12</span>
+        <span class="conn-from" style="color:#16537e">D12 <span style="color:#1abc9c">(GPIO12)</span></span>
         <span class="conn-arrow">→</span>
         <span class="conn-to" style="color:#16537e">MISO</span>
         <span class="conn-wire">blue</span>
       </div>
       <div class="conn-row">
-        <span class="conn-from" style="color:#b7770d">Feather D13</span>
+        <span class="conn-from" style="color:#b7770d">D13 <span style="color:#1abc9c">(GPIO13)</span></span>
         <span class="conn-arrow">→</span>
         <span class="conn-to" style="color:#b7770d">CS</span>
         <span class="conn-wire">yellow</span>
       </div>
       <div class="conn-row">
-        <span class="conn-from" style="color:#795548">Feather A0</span>
+        <span class="conn-from" style="color:#795548">A0 <span style="color:#1abc9c">(GPIO17)</span></span>
         <span class="conn-arrow">→</span>
         <span class="conn-to" style="color:#795548">RST</span>
         <span class="conn-wire">brown</span>
       </div>
       <div class="conn-row">
-        <span class="conn-from" style="color:#1a5276">Feather A1</span>
+        <span class="conn-from" style="color:#1a5276">A1 <span style="color:#1abc9c">(GPIO18)</span></span>
         <span class="conn-arrow">→</span>
         <span class="conn-to" style="color:#1a5276">G0 (IRQ)</span>
         <span class="conn-wire">white</span>
