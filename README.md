@@ -25,7 +25,7 @@ No DMX cables. No WiFi. No power drops to the stage.
 ```
 phosphene/
 ├── gateway/
-│   └── code.py          # ESP32-S3 Feather: sACN → LoRa gateway
+│   └── code.py          # ESP32-S3 Feather: sACN/ArtNet → LoRa gateway
 ├── endpoint/
 │   └── code.py          # ESP32-S3 Feather: LoRa → NeoPixel endpoint
 ├── wiring/
@@ -37,7 +37,7 @@ phosphene/
 
 ## How It Works
 
-The **gateway** sits at the side of the stage or in the booth. It receives sACN (E1.31) from Eos over Ethernet and translates DMX channel values into compact 9-byte LoRa packets. Each command is transmitted three times at 50ms intervals for redundancy.
+The **gateway** sits at the side of the stage or in the booth. It receives sACN (E1.31) or ArtNet from Eos over Ethernet and translates DMX channel values into compact 9-byte LoRa packets. Each command is transmitted three times at 50ms intervals for redundancy. Protocol selection is via the `PROTOCOL` constant in the code (`"sacn"` or `"artnet"`).
 
 The **endpoints** are battery-powered, fully wireless, and hidden in props or rigging. Each listens for LoRa packets addressed to its device ID (or the broadcast address 0), applies duplicate suppression, and runs the specified effect on its NeoPixel strip.
 
@@ -115,9 +115,14 @@ Default patch:
 ### Gateway
 1. Install CircuitPython 10.1.1 for **Adafruit Feather ESP32-S3 4MB/2MB PSRAM** from [circuitpython.org](https://circuitpython.org/board/adafruit_feather_esp32s3/)
 2. Install libraries into `/lib`: `adafruit_rfm9x`, `adafruit_wiznet5k`, `adafruit_bus_device`
-3. Edit `gateway/code.py`: set `STATIC_IP` to match your network, set `SACN_UNIVERSE` to match Eos output
+3. Edit `gateway/code.py`:
+   - Set `PROTOCOL` to `"sacn"` or `"artnet"`
+   - Set `STATIC_IP` to match your network (or enable `USE_DHCP`)
+   - Set universe (`SACN_UNIVERSE` or `ARTNET_UNIVERSE`) to match Eos output
 4. Copy `gateway/code.py` to the board as `code.py`
-5. In Eos: **Setup > Show > Output > Add sACN universe** pointing to the gateway's IP
+5. In Eos: **Setup > Show > Output > Add sACN or ArtNet output** as appropriate
+   - sACN: Point universe to the gateway's IP
+   - ArtNet: No IP needed (uses broadcast)
 
 ### Endpoints
 1. Install CircuitPython 10.1.1 for **Adafruit Feather ESP32-S3 4MB/2MB PSRAM**

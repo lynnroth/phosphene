@@ -5,7 +5,7 @@
 #          + Adafruit WIZ5500 Ethernet Breakout (#6348)   <- Ethernet, wired via primary SPI
 #          + Adafruit RFM95W Breakout 915MHz (#3072)      <- LoRa radio, wired via second SPI
 #
-# Receives sACN (E1.31) from ETC Eos over Ethernet
+# Receives sACN (E1.31) or ArtNet from ETC Eos over Ethernet
 # Translates DMX channels to compact LoRa preset commands
 # Re-broadcasts each command 3x (50ms apart) for reliability
 #
@@ -38,12 +38,12 @@
 #        adafruit_rfm9x.mpy
 #        adafruit_wiznet5k/  (folder)
 #        adafruit_bus_device/ (folder)
-#   3. Configure the settings section below
-#   4. In ETC Eos: Setup > Show > Output > Add sACN output to this device's IP
+#   3. Configure PROTOCOL and settings below
+#   4. In ETC Eos: Setup > Show > Output > Add sACN or ArtNet output as appropriate
 #   5. Copy this file to the board as code.py
 #
 # EOS PATCH GUIDE (per device, 7 channels each):
-#   Ch+0: Preset select  (DMX 0-255 maps to presets 0-25, 10 values per preset)
+#   Ch+0: Preset select  (DMX 0-255 maps to presets 0-51, 5 values per preset)
 #   Ch+1: Intensity      (0-255)
 #   Ch+2: Red            (0-255)
 #   Ch+3: Green          (0-255)
@@ -70,6 +70,10 @@ import adafruit_wiznet5k.adafruit_wiznet5k_socket as socket
 # CONFIGURATION
 # =============================================================================
 
+# --- Protocol Selection ---
+# Set to "sacn" for sACN (E1.31) or "artnet" for ArtNet
+PROTOCOL = "sacn"
+
 # --- Network ---
 USE_DHCP       = False
 STATIC_IP      = (192, 168, 1, 50)   # Change to match your network
@@ -78,8 +82,11 @@ GATEWAY_IP     = (192, 168, 1, 1)
 DNS_SERVER     = (8, 8, 8, 8)
 MAC_ADDRESS    = b"\xDE\xAD\xBE\xEF\xFE\x01"  # Must be unique on your network
 
-SACN_PORT      = 5568   # Standard sACN port, do not change
-SACN_UNIVERSE  = 1      # Must match Eos output universe config
+# Protocol-specific settings
+SACN_PORT       = 5568   # Standard sACN port, do not change
+SACN_UNIVERSE   = 1      # Must match Eos output universe config
+ARTNET_PORT     = 6454   # Standard ArtNet port, do not change
+ARTNET_UNIVERSE = 1      # ArtNet universe to listen for (0-15)
 
 # --- LoRa ---
 LORA_FREQ      = 915.0  # MHz - must match all endpoints
@@ -131,10 +138,17 @@ SACN_HEADER_SIZE       = 126
 E131_PACKET_IDENTIFIER = b"ASC-E1.17\x00\x00\x00"
 
 # =============================================================================
+# ARTNET PROTOCOL CONSTANTS
+# =============================================================================
+ARTNET_IDENTIFIER = b"ArtNet\x00"
+ARTDMX_OPCODE     = 0x5200
+MIN_ARTNET_SIZE   = 18
+
+# =============================================================================
 # HARDWARE INIT
 # =============================================================================
 
-print("Theater LoRa Gateway booting...")
+print(f"Theater LoRa Gateway booting ({PROTOCOL.upper()})...")
 print("Board: Adafruit ESP32-S3 Feather (#5477)")
 
 # -------------------------------------------------------------------------
@@ -200,14 +214,21 @@ except Exception as e:
     raise
 
 # =============================================================================
-# UDP SOCKET for sACN
+# UDP SOCKET
 # =============================================================================
 
 socket.set_interface(eth)
 udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-udp.bind(('', SACN_PORT))
-udp.setblocking(False)
-print(f"Listening for sACN on UDP port {SACN_PORT}, universe {SACN_UNIVERSE}")
+
+if PROTOCOL == "sacn":
+    udp.bind(('', SACN_PORT))
+    udp.setblocking(False)
+    print(f"Listening for sACN on UDP port {SACN_PORT}, universe {SACN_UNIVERSE}")
+else:
+    udp.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+    udp.bind(('', ARTNET_PORT))
+    udp.setblocking(False)
+    print(f"Listening for ArtNet broadcast on UDP port {ARTNET_PORT}, universe {ARTNET_UNIVERSE}")
 
 # =============================================================================
 # STATE
@@ -219,7 +240,7 @@ command_id       = 0
 pending_sends    = []   # List of (send_at_time, packet_bytes)
 
 # =============================================================================
-# sACN PARSING
+# PROTOCOL PARSING
 # =============================================================================
 
 def parse_sacn(data):
@@ -239,6 +260,45 @@ def parse_sacn(data):
     prop_count = struct.unpack_from(">H", data, 123)[0] & 0x0FFF
     dmx_length = prop_count - 1
     return data[SACN_HEADER_SIZE : SACN_HEADER_SIZE + dmx_length]
+
+
+def parse_artnet(data):
+    """
+    Parse an ArtNet UDP packet.
+    Returns the DMX payload bytes if valid, or None if invalid/wrong universe.
+    """
+    if len(data) < MIN_ARTNET_SIZE:
+        return None
+    
+    # Check ArtNet identifier
+    if data[0:8] != ARTNET_IDENTIFIER:
+        return None
+    
+    # Check opcode (must be ArtDMX = 0x5200)
+    opcode = struct.unpack_from(">H", data, 8)[0]
+    if opcode != ARTDMX_OPCODE:
+        return None
+    
+    # Check version (must be >= 14)
+    version = struct.unpack_from(">H", data, 10)[0]
+    if version < 14:
+        return None
+    
+    # Extract universe (Net + SubUni)
+    net = data[15] & 0x7F
+    subuni = data[14] & 0x0F
+    universe = (net << 4) | subuni
+    
+    if universe != ARTNET_UNIVERSE:
+        return None
+    
+    # Get DMX data length
+    dmx_length = struct.unpack_from(">H", data, 16)[0]
+    if dmx_length < 1 or dmx_length > 512:
+        return None
+    
+    # Return DMX data (starts at offset 18)
+    return data[18:18 + dmx_length]
 
 
 # =============================================================================
@@ -333,7 +393,13 @@ def check_device_changes():
 # MAIN LOOP
 # =============================================================================
 
-print("\nGateway running. Waiting for sACN from Eos...\n")
+print(f"\nGateway running. Waiting for {PROTOCOL.upper()} from Eos...\n")
+
+if PROTOCOL == "artnet":
+    print("Note: Eos does NOT need to know this gateway's IP address.")
+    print("      ArtNet uses broadcast, so just add an ArtNet output in Eos.\n")
+
+parse_func = parse_sacn if PROTOCOL == "sacn" else parse_artnet
 
 while True:
     now = time.monotonic()
@@ -347,11 +413,11 @@ while True:
             still_pending.append((send_at, packet))
     pending_sends[:] = still_pending
 
-    # --- Receive sACN from Eos ---
+    # --- Receive DMX from Eos ---
     try:
         raw, addr = udp.recvfrom(638)
         if raw:
-            payload = parse_sacn(raw)
+            payload = parse_func(raw)
             if payload is not None:
                 dmx_data[:len(payload)] = payload
                 check_device_changes()
