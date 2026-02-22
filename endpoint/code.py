@@ -69,8 +69,14 @@ NUM_PIXELS = 40         # Number of NeoPixels on this device (change to match yo
 
 # --- WiFi Simulation Mode ---
 # Listens for 9-byte UDP packets from the gateway over WiFi instead of (or alongside) LoRa.
-# Set WIFI_SIM_ENABLED to False to disable even when WIFI_SSID is in settings.toml.
+# Set WIFI_SIM_ENABLED = False to disable regardless of settings.toml contents.
+# WIFI_SIM_NETWORK:
+#   "ap"  — join the gateway's own AP (credentials from WIFI_AP_SSID/WIFI_AP_PASSWORD
+#           in settings.toml; defaults match gateway: "phosphene" / "gobo1234").
+#           No external network needed.
+#   "sta" — join an existing WiFi network (WIFI_SSID/WIFI_PASSWORD in settings.toml).
 WIFI_SIM_ENABLED = True
+WIFI_SIM_NETWORK = "ap"
 WIFI_SIM_PORT    = 5569   # Must match WIFI_SIM_PORT in gateway/code.py
 
 LORA_FREQ = 915.0       # MHz - must match gateway
@@ -167,24 +173,34 @@ except Exception as e:
     print(f"WARNING: LoRa not available: {e}")
     print("LoRa receive disabled — WiFi sim still active if configured")
 
-# WiFi sim mode — connect to station network and listen for UDP packets
+# WiFi sim mode — connect to a network and listen for UDP packets from gateway
 sim_udp = None
-_wifi_ssid = os.getenv("WIFI_SSID")
-if WIFI_SIM_ENABLED and _wifi_ssid:
-    try:
-        print(f"Connecting to WiFi '{_wifi_ssid}'...")
-        wifi.radio.connect(_wifi_ssid, os.getenv("WIFI_PASSWORD", ""))
-        print(f"WiFi connected | IP {wifi.radio.ipv4_address}")
-        _pool = socketpool.SocketPool(wifi.radio)
-        sim_udp = _pool.socket(_pool.AF_INET, _pool.SOCK_DGRAM)
-        sim_udp.bind(("0.0.0.0", WIFI_SIM_PORT))
-        sim_udp.settimeout(0)
-        print(f"WiFi sim mode: listening on UDP port {WIFI_SIM_PORT}")
-    except Exception as e:
-        sim_udp = None
-        print(f"WiFi sim mode unavailable: {e}")
+if WIFI_SIM_ENABLED:
+    if WIFI_SIM_NETWORK == "ap":
+        _sim_ssid = os.getenv("WIFI_AP_SSID", "phosphene")
+        _sim_pass = os.getenv("WIFI_AP_PASSWORD", "gobo1234")
+        _sim_label = f"gateway AP '{_sim_ssid}'"
+    else:  # "sta"
+        _sim_ssid = os.getenv("WIFI_SSID")
+        _sim_pass = os.getenv("WIFI_PASSWORD", "")
+        _sim_label = f"network '{_sim_ssid}'"
+    if _sim_ssid:
+        try:
+            print(f"Connecting to {_sim_label}...")
+            wifi.radio.connect(_sim_ssid, _sim_pass)
+            print(f"WiFi connected | IP {wifi.radio.ipv4_address}")
+            _pool = socketpool.SocketPool(wifi.radio)
+            sim_udp = _pool.socket(_pool.AF_INET, _pool.SOCK_DGRAM)
+            sim_udp.bind(("0.0.0.0", WIFI_SIM_PORT))
+            sim_udp.settimeout(0)
+            print(f"WiFi sim mode: listening on UDP :{WIFI_SIM_PORT}")
+        except Exception as e:
+            sim_udp = None
+            print(f"WiFi sim mode unavailable: {e}")
+    else:
+        print("WiFi sim mode disabled (WIFI_SSID not set in settings.toml)")
 else:
-    print("WiFi sim mode disabled (add WIFI_SSID to settings.toml to enable)")
+    print("WiFi sim mode disabled (WIFI_SIM_ENABLED = False)")
 
 # =============================================================================
 # STATE

@@ -112,10 +112,14 @@ AP_PASSWORD = os.getenv("WIFI_AP_PASSWORD", "gobo1234")
 
 # --- WiFi Simulation Mode ---
 # Broadcasts the same 9-byte packets over UDP so endpoints can receive them without LoRa.
-# Set to False to disable even when a station connection is available.
+# Set WIFI_SIM_ENABLED = False to disable regardless of network availability.
+# WIFI_SIM_NETWORK:
+#   "ap"  — broadcast on the gateway's own AP subnet (192.168.4.x).
+#           Endpoints join the "phosphene" AP; no external network needed.
+#   "sta" — broadcast on the station network (requires gateway to be connected to WiFi).
 WIFI_SIM_ENABLED = True
-WIFI_SIM_PORT    = 5569        # Must match WIFI_SIM_PORT on all endpoints
-WIFI_SIM_ADDR    = "255.255.255.255"  # Overwritten at runtime with directed broadcast
+WIFI_SIM_NETWORK = "ap"
+WIFI_SIM_PORT    = 5569   # Must match WIFI_SIM_PORT on all endpoints
 
 # --- Protocol Selection ---
 # Set to "sacn" for sACN (E1.31) or "artnet" for ArtNet
@@ -345,24 +349,32 @@ sta_ip = str(wifi.radio.ipv4_address) if wifi.radio.ipv4_address else None
 
 # WiFi sim: broadcast LoRa packets over UDP when station connection is available
 sim_udp = None
-if WIFI_SIM_ENABLED and sta_ip:
+if WIFI_SIM_ENABLED:
     try:
-        # Compute directed broadcast from station IP (avoids 255.255.255.255 routing ambiguity
-        # on ESP32-S3 which runs AP+STA simultaneously on the same radio).
-        # Assumes /24 subnet — adjust last octet to 255.
-        _parts = sta_ip.split(".")
-        WIFI_SIM_ADDR = f"{_parts[0]}.{_parts[1]}.{_parts[2]}.255"
+        if WIFI_SIM_NETWORK == "ap":
+            # Broadcast on the gateway's own AP subnet — no station connection needed.
+            _parts = ap_ip.split(".")
+            _sim_addr = f"{_parts[0]}.{_parts[1]}.{_parts[2]}.255"
+            _label = f"AP subnet ({ap_ip})"
+        else:  # "sta"
+            if not sta_ip:
+                raise OSError("no station IP available for WIFI_SIM_NETWORK='sta'")
+            _parts = sta_ip.split(".")
+            _sim_addr = f"{_parts[0]}.{_parts[1]}.{_parts[2]}.255"
+            _label = f"station subnet ({sta_ip})"
         sim_udp = ap_pool.socket(ap_pool.AF_INET, ap_pool.SOCK_DGRAM)
         try:
             sim_udp.setsockopt(ap_pool.SOL_SOCKET, ap_pool.SO_BROADCAST, 1)
         except (AttributeError, OSError):
             pass  # Some builds don't expose the constant; send may still work
-        log(f"WiFi sim mode enabled | broadcast {WIFI_SIM_ADDR}:{WIFI_SIM_PORT} (station: {sta_ip})")
+        log(f"WiFi sim mode enabled | broadcast {_sim_addr}:{WIFI_SIM_PORT} via {_label}")
     except Exception as e:
         sim_udp = None
+        _sim_addr = None
         log(f"WiFi sim mode unavailable: {e}")
 else:
-    log("WiFi sim mode disabled (no station IP)")
+    _sim_addr = None
+    log("WiFi sim mode disabled (WIFI_SIM_ENABLED = False)")
 
 log("Starting HTTP server on port 8080...")
 try:
@@ -586,7 +598,7 @@ while True:
                     log(f"[LORA TX] dev={packet[0]} cmd={packet[1]} preset={packet[2]}")
                 if sim_udp is not None:
                     try:
-                        sim_udp.sendto(packet, (WIFI_SIM_ADDR, WIFI_SIM_PORT))
+                        sim_udp.sendto(packet, (_sim_addr, WIFI_SIM_PORT))
                         log(f"[SIM TX]  dev={packet[0]} cmd={packet[1]} preset={packet[2]}")
                     except OSError as e:
                         log(f"[SIM TX]  FAILED: {e}")
