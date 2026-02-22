@@ -64,11 +64,58 @@ import busio
 import digitalio
 import adafruit_rfm9x
 from adafruit_wiznet5k.adafruit_wiznet5k import WIZNET5K
-import adafruit_wiznet5k.adafruit_wiznet5k_socket as socket
+import adafruit_wiznet5k.adafruit_wiznet5k_socketpool as wiznet_socketpool
+import os
+import wifi
+import socketpool
+import gc
+from adafruit_httpserver import Server, Request, Response, JSONResponse, POST, GET
+
+# =============================================================================
+# LOGGING  (requires boot.py to remount filesystem writable — see gateway/boot.py)
+# =============================================================================
+
+LOG_FILE   = "/log.txt"
+LOG_MAX_KB = 64   # Truncate when log exceeds this size
+
+
+def log(msg):
+    """Print to serial and append to /log.txt with a monotonic timestamp."""
+    print(msg)
+    try:
+        try:
+            if os.stat(LOG_FILE)[6] > LOG_MAX_KB * 1024:
+                with open(LOG_FILE, "w") as _f:
+                    _f.write("[log truncated — size limit reached]\n")
+        except OSError:
+            pass   # File doesn't exist yet, that's fine
+        with open(LOG_FILE, "a") as _f:
+            _f.write(f"{time.monotonic():.3f}  {msg}\n")
+    except OSError:
+        pass   # Filesystem not writable (boot.py not deployed — logs serial only)
+
+
+# Mark a new boot session in the log
+try:
+    with open(LOG_FILE, "a") as _f:
+        _f.write(f"\n{'='*60}\n=== BOOT at t={time.monotonic():.3f} ===\n{'='*60}\n")
+except OSError:
+    pass   # Filesystem not writable
 
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
+
+# --- WiFi Access Point ---
+AP_SSID     = os.getenv("WIFI_AP_SSID",     "phosphene")
+AP_PASSWORD = os.getenv("WIFI_AP_PASSWORD", "gobo1234")
+
+# --- WiFi Simulation Mode ---
+# Broadcasts the same 9-byte packets over UDP so endpoints can receive them without LoRa.
+# Set to False to disable even when a station connection is available.
+WIFI_SIM_ENABLED = True
+WIFI_SIM_PORT    = 5569        # Must match WIFI_SIM_PORT on all endpoints
+WIFI_SIM_ADDR    = "255.255.255.255"  # Overwritten at runtime with directed broadcast
 
 # --- Protocol Selection ---
 # Set to "sacn" for sACN (E1.31) or "artnet" for ArtNet
@@ -148,8 +195,8 @@ MIN_ARTNET_SIZE   = 18
 # HARDWARE INIT
 # =============================================================================
 
-print(f"Theater LoRa Gateway booting ({PROTOCOL.upper()})...")
-print("Board: Adafruit ESP32-S3 Feather (#5477)")
+log(f"Theater LoRa Gateway booting ({PROTOCOL.upper()})...")
+log("Board: Adafruit ESP32-S3 Feather (#5477)")
 
 # -------------------------------------------------------------------------
 # Primary SPI — WIZ5500 Ethernet Breakout (#6348)
@@ -165,21 +212,21 @@ eth_cs = digitalio.DigitalInOut(board.D9)
 eth_cs.direction = digitalio.Direction.OUTPUT
 eth_cs.value = True   # Deassert CS before init
 
+log("Initialising WIZ5500 Ethernet...")
 try:
     eth = WIZNET5K(spi0, eth_cs, mac=MAC_ADDRESS)
-    print("WIZ5500 Ethernet found")
+    log("WIZ5500 Ethernet found")
+    if USE_DHCP:
+        log("Getting IP via DHCP...")
+        eth.dhcp()
+        log(f"Ethernet IP: {eth.pretty_ip(eth.ip_address)}")
+    else:
+        eth.ifconfig = (STATIC_IP, SUBNET_MASK, GATEWAY_IP, DNS_SERVER)
+        log(f"Ethernet static IP: {'.'.join(str(b) for b in STATIC_IP)}")
 except Exception as e:
-    print(f"Ethernet init failed: {e}")
-    print("Check wires: SCK->SCK, MOSI->MOSI, MISO->MISO, CS->D9, VIN->3.3V")
-    raise
-
-if USE_DHCP:
-    print("Getting IP via DHCP...")
-    eth.dhcp()
-    print(f"IP Address: {eth.pretty_ip(eth.ip_address)}")
-else:
-    eth.ifconfig = (STATIC_IP, SUBNET_MASK, GATEWAY_IP, DNS_SERVER)
-    print(f"Static IP: {'.'.join(str(b) for b in STATIC_IP)}")
+    eth = None
+    log(f"WARNING: Ethernet not available: {e}")
+    log("sACN/ArtNet disabled — web UI still active")
 
 # -------------------------------------------------------------------------
 # Second SPI — RFM95W Breakout (#3072)
@@ -199,6 +246,7 @@ lora_rst = digitalio.DigitalInOut(board.A0)
 lora_cs.direction = digitalio.Direction.OUTPUT
 lora_cs.value = True   # Deassert CS before init
 
+log("Initialising RFM95W LoRa radio...")
 try:
     rfm9x = adafruit_rfm9x.RFM9x(spi1, lora_cs, lora_rst, LORA_FREQ)
     rfm9x.spreading_factor = LORA_SF
@@ -207,37 +255,162 @@ try:
     rfm9x.tx_power         = LORA_TX_POWER
     rfm9x.enable_crc       = True
     rfm9x.node             = 0   # Gateway is node 0
-    print(f"LoRa radio ready | SF{LORA_SF} BW{LORA_BW//1000}kHz @ {LORA_FREQ}MHz")
+    log(f"LoRa radio ready | SF{LORA_SF} BW{LORA_BW//1000}kHz @ {LORA_FREQ}MHz")
 except Exception as e:
-    print(f"LoRa init failed: {e}")
-    print("Check wires: SCK->D10, MOSI->D11, MISO->D12, CS->D13, RST->A0, G0->A1")
+    rfm9x = None
+    log(f"WARNING: LoRa radio not available: {e}")
+    log("LoRa transmit disabled — web UI still active")
+
+# =============================================================================
+# WIFI ACCESS POINT + HTTP SERVER
+# =============================================================================
+
+log(f"Starting WiFi AP '{AP_SSID}'...")
+try:
+    wifi.radio.start_ap(ssid=AP_SSID, password=AP_PASSWORD)
+    ap_ip = str(wifi.radio.ipv4_address_ap) if wifi.radio.ipv4_address_ap else "192.168.4.1"
+    log(f"WiFi AP up | IP {ap_ip}")
+except Exception as e:
+    log(f"FATAL: WiFi AP start failed: {e}")
+    raise
+ap_pool = socketpool.SocketPool(wifi.radio)
+server = Server(ap_pool, debug=False)
+log("HTTP server created")
+
+
+@server.route("/")
+def serve_ui(request: Request):
+    try:
+        html = open("/gateway/ui.html", "r").read()
+    except OSError:
+        html = "<h1>ui.html not found — copy gateway/ui.html to CIRCUITPY/gateway/ui.html</h1>"
+    return Response(request, html,
+                    content_type="text/html",
+                    headers={"Connection": "close"})
+
+
+@server.route("/status")
+def handle_status(request: Request):
+    clients = 0
+    try:
+        ap = wifi.radio.ap_info
+        if ap and hasattr(ap, "stations_count"):
+            clients = ap.stations_count
+    except Exception:
+        pass
+    return JSONResponse(request, {
+        "eth_link": bool(eth.link_status) if eth is not None else False,
+        "wifi_clients": clients,
+        "last_cmd": last_web_cmd,
+        "rssi": {}
+    }, headers={"Connection": "close"})
+
+
+@server.route("/send", [POST])
+def handle_send(request: Request):
+    global command_id, last_web_cmd
+    try:
+        data = request.json()
+        device    = int(data.get("device",    0))
+        preset    = int(data.get("preset",    4))
+        intensity = int(data.get("intensity", 128))
+        r         = int(data.get("r",         255))
+        g         = int(data.get("g",         255))
+        b         = int(data.get("b",         255))
+        speed     = int(data.get("speed",     128))
+
+        # Clamp all values to 0-255
+        device    = max(0, min(5,   device))
+        preset    = max(0, min(255, preset))
+        intensity = max(0, min(255, intensity))
+        r         = max(0, min(255, r))
+        g         = max(0, min(255, g))
+        b         = max(0, min(255, b))
+        speed     = max(0, min(255, speed))
+
+        packet = build_packet(device, command_id, preset, intensity, r, g, b, speed)
+        command_id = (command_id + 1) & 0xFF
+        schedule_sends(packet)
+        last_web_cmd = {"preset": preset, "device": device, "t": time.monotonic()}
+        log(f"[WEB] Device {device} -> Preset={preset} Int={intensity} "
+            f"RGB=({r},{g},{b}) Spd={speed}")
+        return JSONResponse(request, {"ok": True}, headers={"Connection": "close"})
+    except Exception as e:
+        log(f"[WEB /send ERROR] {type(e).__name__}: {e}")
+        return JSONResponse(request, {"ok": False, "error": str(e)},
+                            headers={"Connection": "close"})
+
+
+sta_ip = str(wifi.radio.ipv4_address) if wifi.radio.ipv4_address else None
+
+# WiFi sim: broadcast LoRa packets over UDP when station connection is available
+sim_udp = None
+if WIFI_SIM_ENABLED and sta_ip:
+    try:
+        # Compute directed broadcast from station IP (avoids 255.255.255.255 routing ambiguity
+        # on ESP32-S3 which runs AP+STA simultaneously on the same radio).
+        # Assumes /24 subnet — adjust last octet to 255.
+        _parts = sta_ip.split(".")
+        WIFI_SIM_ADDR = f"{_parts[0]}.{_parts[1]}.{_parts[2]}.255"
+        sim_udp = ap_pool.socket(ap_pool.AF_INET, ap_pool.SOCK_DGRAM)
+        try:
+            sim_udp.setsockopt(ap_pool.SOL_SOCKET, ap_pool.SO_BROADCAST, 1)
+        except (AttributeError, OSError):
+            pass  # Some builds don't expose the constant; send may still work
+        log(f"WiFi sim mode enabled | broadcast {WIFI_SIM_ADDR}:{WIFI_SIM_PORT} (station: {sta_ip})")
+    except Exception as e:
+        sim_udp = None
+        log(f"WiFi sim mode unavailable: {e}")
+else:
+    log("WiFi sim mode disabled (no station IP)")
+
+log("Starting HTTP server on port 8080...")
+try:
+    server.start("0.0.0.0", port=8080)
+    log(f"Web UI at http://{ap_ip}:8080 (AP)")
+    if sta_ip:
+        log(f"Web UI at http://{sta_ip}:8080 (local network)")
+except Exception as e:
+    log(f"FATAL: HTTP server start failed: {e}")
     raise
 
 # =============================================================================
 # UDP SOCKET
 # =============================================================================
 
-socket.set_interface(eth)
-udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-
-if PROTOCOL == "sacn":
-    udp.bind(('', SACN_PORT))
-    udp.setblocking(False)
-    print(f"Listening for sACN on UDP port {SACN_PORT}, universe {SACN_UNIVERSE}")
+if eth is not None:
+    log("Opening UDP socket...")
+    try:
+        eth_pool = wiznet_socketpool.SocketPool(eth)
+        udp = eth_pool.socket(eth_pool.AF_INET, eth_pool.SOCK_DGRAM)
+        if PROTOCOL == "sacn":
+            udp.bind(('', SACN_PORT))
+            udp.settimeout(0)
+            log(f"Listening for sACN on UDP port {SACN_PORT}, universe {SACN_UNIVERSE}")
+        else:
+            try:
+                udp.setsockopt(eth_pool.SOL_SOCKET, eth_pool.SO_BROADCAST, 1)
+            except (AttributeError, OSError):
+                pass  # Broadcast opt may not be needed on WIZnet hardware
+            udp.bind(('', ARTNET_PORT))
+            udp.settimeout(0)
+            log(f"Listening for ArtNet broadcast on UDP port {ARTNET_PORT}, universe {ARTNET_UNIVERSE}")
+    except Exception as e:
+        udp = None
+        log(f"WARNING: UDP socket setup failed: {e}")
 else:
-    udp.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-    udp.bind(('', ARTNET_PORT))
-    udp.setblocking(False)
-    print(f"Listening for ArtNet broadcast on UDP port {ARTNET_PORT}, universe {ARTNET_UNIVERSE}")
+    udp = None
 
 # =============================================================================
 # STATE
 # =============================================================================
 
-dmx_data         = bytearray(512)
+dmx_data          = bytearray(512)
 prev_device_state = {}
-command_id       = 0
-pending_sends    = []   # List of (send_at_time, packet_bytes)
+command_id        = 0
+pending_sends     = []   # List of (send_at_time, packet_bytes)
+last_web_cmd      = {}   # Most recent command from web UI (for /status)
+loop_tick         = 0
 
 # =============================================================================
 # PROTOCOL PARSING
@@ -384,8 +557,8 @@ def check_device_changes():
             prev_device_state[device_id] = new_state
             packet = build_packet(device_id, command_id, preset, intensity, r, g, b, speed)
             schedule_sends(packet)
-            print(f"Device {device_id} -> Preset={preset} Int={intensity} "
-                  f"RGB=({r},{g},{b}) Spd={speed} CmdID={command_id}")
+            log(f"[sACN] Device {device_id} -> Preset={preset} Int={intensity} "
+                f"RGB=({r},{g},{b}) Spd={speed} CmdID={command_id}")
             command_id = (command_id + 1) & 0xFF
 
 
@@ -393,35 +566,57 @@ def check_device_changes():
 # MAIN LOOP
 # =============================================================================
 
-print(f"\nGateway running. Waiting for {PROTOCOL.upper()} from Eos...\n")
+log(f"\nGateway running. Waiting for {PROTOCOL.upper()} from Eos...")
 
 if PROTOCOL == "artnet":
-    print("Note: Eos does NOT need to know this gateway's IP address.")
-    print("      ArtNet uses broadcast, so just add an ArtNet output in Eos.\n")
+    log("Note: ArtNet uses broadcast — no gateway IP needed in Eos.")
 
 parse_func = parse_sacn if PROTOCOL == "sacn" else parse_artnet
 
 while True:
     now = time.monotonic()
 
-    # --- Process pending LoRa sends ---
-    still_pending = []
-    for send_at, packet in pending_sends:
-        if now >= send_at:
-            rfm9x.send(packet)
-        else:
-            still_pending.append((send_at, packet))
-    pending_sends[:] = still_pending
+    # --- Process pending sends (LoRa and/or WiFi sim) ---
+    if pending_sends and (rfm9x is not None or sim_udp is not None):
+        still_pending = []
+        for send_at, packet in pending_sends:
+            if now >= send_at:
+                if rfm9x is not None:
+                    rfm9x.send(packet)
+                    log(f"[LORA TX] dev={packet[0]} cmd={packet[1]} preset={packet[2]}")
+                if sim_udp is not None:
+                    try:
+                        sim_udp.sendto(packet, (WIFI_SIM_ADDR, WIFI_SIM_PORT))
+                        log(f"[SIM TX]  dev={packet[0]} cmd={packet[1]} preset={packet[2]}")
+                    except OSError as e:
+                        log(f"[SIM TX]  FAILED: {e}")
+            else:
+                still_pending.append((send_at, packet))
+        pending_sends[:] = still_pending
 
     # --- Receive DMX from Eos ---
-    try:
-        raw, addr = udp.recvfrom(638)
-        if raw:
-            payload = parse_func(raw)
-            if payload is not None:
-                dmx_data[:len(payload)] = payload
-                check_device_changes()
-    except OSError:
-        pass   # No packet available in non-blocking mode
+    if udp is not None:
+        try:
+            raw, addr = udp.recvfrom(638)
+            if raw:
+                payload = parse_func(raw)
+                if payload is not None:
+                    dmx_data[:len(payload)] = payload
+                    check_device_changes()
+        except OSError:
+            pass   # No packet available in non-blocking mode
 
-    time.sleep(0.002)   # 2ms — keeps loop responsive without burning CPU
+    # --- Serve web UI requests ---
+    try:
+        server.poll()
+    except OSError as e:
+        log(f"[server.poll OSError] {e}")
+    except Exception as e:
+        log(f"[server.poll ERROR] {type(e).__name__}: {e}")
+
+    # --- Periodic GC (~every 5s at 500 ticks × 10ms) ---
+    if loop_tick % 500 == 0:
+        gc.collect()
+    loop_tick += 1
+
+    time.sleep(0.010)   # 10ms — keeps loop responsive without burning CPU

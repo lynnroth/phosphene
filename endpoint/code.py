@@ -49,10 +49,13 @@
 
 import time
 import random
+import os
 import board
 import busio
 import digitalio
 import neopixel
+import wifi
+import socketpool
 import adafruit_rfm9x
 
 # =============================================================================
@@ -63,6 +66,12 @@ DEVICE_ID = 1           # Unique ID for this endpoint (1-5). 0 = gateway broadca
 
 NEOPIXEL_PIN = board.D5    # GPIO pin connected to NeoPixel data line
 NUM_PIXELS = 40         # Number of NeoPixels on this device (change to match your strip)
+
+# --- WiFi Simulation Mode ---
+# Listens for 9-byte UDP packets from the gateway over WiFi instead of (or alongside) LoRa.
+# Set WIFI_SIM_ENABLED to False to disable even when WIFI_SSID is in settings.toml.
+WIFI_SIM_ENABLED = True
+WIFI_SIM_PORT    = 5569   # Must match WIFI_SIM_PORT in gateway/code.py
 
 LORA_FREQ = 915.0       # MHz - must match gateway
 
@@ -139,17 +148,43 @@ spi = busio.SPI(clock=board.SCK, MOSI=board.MOSI, MISO=board.MISO)
 cs  = digitalio.DigitalInOut(board.D9)
 rst = digitalio.DigitalInOut(board.D10)
 
-rfm9x = adafruit_rfm9x.RFM9x(spi, cs, rst, LORA_FREQ)
-rfm9x.spreading_factor  = LORA_SF
-rfm9x.signal_bandwidth  = LORA_BW
-rfm9x.coding_rate       = LORA_CR
-rfm9x.tx_power          = LORA_TX_POWER
-rfm9x.enable_crc        = True
-rfm9x.node              = DEVICE_ID
-rfm9x.destination       = 0xFF  # Accept any sender
+print(f"Theater LoRa Endpoint {DEVICE_ID} booting...")
+print(f"Board: ESP32-S3 Feather (#5477) | {NUM_PIXELS} pixels")
 
-print(f"Theater LoRa Endpoint {DEVICE_ID} ready")
-print(f"Board: ESP32-S3 Feather (#5477) | {NUM_PIXELS} pixels | LoRa SF{LORA_SF}/BW{LORA_BW//1000}kHz")
+print("Initialising RFM95W LoRa radio...")
+try:
+    rfm9x = adafruit_rfm9x.RFM9x(spi, cs, rst, LORA_FREQ)
+    rfm9x.spreading_factor  = LORA_SF
+    rfm9x.signal_bandwidth  = LORA_BW
+    rfm9x.coding_rate       = LORA_CR
+    rfm9x.tx_power          = LORA_TX_POWER
+    rfm9x.enable_crc        = True
+    rfm9x.node              = DEVICE_ID
+    rfm9x.destination       = 0xFF  # Accept any sender
+    print(f"LoRa ready | SF{LORA_SF} BW{LORA_BW//1000}kHz @ {LORA_FREQ}MHz")
+except Exception as e:
+    rfm9x = None
+    print(f"WARNING: LoRa not available: {e}")
+    print("LoRa receive disabled — WiFi sim still active if configured")
+
+# WiFi sim mode — connect to station network and listen for UDP packets
+sim_udp = None
+_wifi_ssid = os.getenv("WIFI_SSID")
+if WIFI_SIM_ENABLED and _wifi_ssid:
+    try:
+        print(f"Connecting to WiFi '{_wifi_ssid}'...")
+        wifi.radio.connect(_wifi_ssid, os.getenv("WIFI_PASSWORD", ""))
+        print(f"WiFi connected | IP {wifi.radio.ipv4_address}")
+        _pool = socketpool.SocketPool(wifi.radio)
+        sim_udp = _pool.socket(_pool.AF_INET, _pool.SOCK_DGRAM)
+        sim_udp.bind(("0.0.0.0", WIFI_SIM_PORT))
+        sim_udp.settimeout(0)
+        print(f"WiFi sim mode: listening on UDP port {WIFI_SIM_PORT}")
+    except Exception as e:
+        sim_udp = None
+        print(f"WiFi sim mode unavailable: {e}")
+else:
+    print("WiFi sim mode disabled (add WIFI_SSID to settings.toml to enable)")
 
 # =============================================================================
 # STATE
@@ -1208,22 +1243,34 @@ time.sleep(0.5)
 pixels.fill((0, 0, 0))
 pixels.show()
 
+_sim_buf = bytearray(16)  # Reusable receive buffer for WiFi sim packets
+
 print("Entering main loop...")
 
 while True:
-    # --- Check for incoming LoRa packet (non-blocking, timeout=0) ---
-    packet = rfm9x.receive(timeout=0.0)
+    # --- Check for incoming LoRa packet (non-blocking) ---
+    if rfm9x is not None:
+        packet = rfm9x.receive(timeout=0.0)
+        if packet is not None:
+            print(f"[LORA RX] RSSI={rfm9x.last_rssi}dBm "
+                  f"dev={packet[0]} cmd={packet[1]} preset={packet[2]} "
+                  f"int={packet[3]} rgb=({packet[4]},{packet[5]},{packet[6]})")
+            apply_packet(packet)
 
-    if packet is not None:
-        rssi = rfm9x.last_rssi
-        print(f"Packet received | RSSI: {rssi} dBm | {len(packet)} bytes")
-        apply_packet(packet)
+    # --- Check for incoming WiFi sim packet (non-blocking) ---
+    if sim_udp is not None:
+        try:
+            nbytes, addr = sim_udp.recvfrom_into(_sim_buf)
+            if nbytes >= 9:
+                print(f"[SIM RX]  from={addr[0]} "
+                      f"dev={_sim_buf[0]} cmd={_sim_buf[1]} preset={_sim_buf[2]} "
+                      f"int={_sim_buf[3]} rgb=({_sim_buf[4]},{_sim_buf[5]},{_sim_buf[6]})")
+                apply_packet(_sim_buf)
+        except OSError:
+            pass  # No packet available
 
     # --- Run current effect ---
     effect_fn = EFFECTS.get(current_preset, effect_solid)
     effect_fn()
 
-    # Small sleep to prevent CPU from spinning at full speed unnecessarily.
-    # Keep this SHORT so animation stays smooth.
-    # The LoRa radio buffers incoming packets even during this sleep.
-    time.sleep(0.01)  # 10ms = ~100fps max animation rate, plenty for effects
+    time.sleep(0.01)  # 10ms = ~100fps

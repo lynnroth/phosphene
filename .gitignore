@@ -14,3 +14,6 @@ Thumbs.db
 # Secrets / local config (if you ever split settings out)
 secrets.py
 settings.toml
+
+# Local library downloads (install to board manually)
+lib-download/

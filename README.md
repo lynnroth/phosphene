@@ -25,7 +25,8 @@ No DMX cables. No WiFi. No power drops to the stage.
 ```
 phosphene/
 ├── gateway/
-│   └── code.py          # ESP32-S3 Feather: sACN/ArtNet → LoRa gateway
+│   ├── code.py          # ESP32-S3 Feather: sACN/ArtNet → LoRa gateway
+│   └── ui.html          # Web UI (copy to CIRCUITPY/gateway/ui.html)
 ├── endpoint/
 │   └── code.py          # ESP32-S3 Feather: LoRa → NeoPixel endpoint
 ├── wiring/
@@ -114,15 +115,23 @@ Default patch:
 
 ### Gateway
 1. Install CircuitPython 10.1.1 for **Adafruit Feather ESP32-S3 4MB/2MB PSRAM** from [circuitpython.org](https://circuitpython.org/board/adafruit_feather_esp32s3/)
-2. Install libraries into `/lib`: `adafruit_rfm9x`, `adafruit_wiznet5k`, `adafruit_bus_device`
+2. Install libraries into `/lib`: `adafruit_rfm9x`, `adafruit_wiznet5k`, `adafruit_bus_device`, `adafruit_httpserver`
 3. Edit `gateway/code.py`:
    - Set `PROTOCOL` to `"sacn"` or `"artnet"`
    - Set `STATIC_IP` to match your network (or enable `USE_DHCP`)
    - Set universe (`SACN_UNIVERSE` or `ARTNET_UNIVERSE`) to match Eos output
 4. Copy `gateway/code.py` to the board as `code.py`
-5. In Eos: **Setup > Show > Output > Add sACN or ArtNet output** as appropriate
+5. Copy `gateway/ui.html` to `CIRCUITPY/gateway/ui.html` on the board
+6. Create `CIRCUITPY/settings.toml` on the board (see `settings.toml` in repo for template)
+7. In Eos: **Setup > Show > Output > Add sACN or ArtNet output** as appropriate
    - sACN: Point universe to the gateway's IP
    - ArtNet: No IP needed (uses broadcast)
+
+### Web UI
+
+The gateway runs a WiFi access point named **phosphene** (password: `gobo1234` by default, configurable via `settings.toml`). Connect a phone or tablet to this AP and open **http://192.168.4.1:8080** to get a touch-friendly preset/intensity/color control panel.
+
+The web UI and Eos sACN are designed for independent use — both routes drive the same LoRa transmit queue, so any command from either source reaches endpoints identically.
 
 ### Endpoints
 1. Install CircuitPython 10.1.1 for **Adafruit Feather ESP32-S3 4MB/2MB PSRAM**
