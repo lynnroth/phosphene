@@ -59,24 +59,30 @@ import socketpool
 import adafruit_rfm9x
 
 # =============================================================================
-# CONFIGURATION - Edit these for each device
+# CONFIGURATION — per-device settings loaded from CIRCUITPY/settings.toml
 # =============================================================================
+# All per-device values live in settings.toml so the same code.py runs on every
+# endpoint. See the settings.toml template in the repo for the full key list.
 
-DEVICE_ID = 1           # Unique ID for this endpoint (1-5). 0 = gateway broadcast address.
+# DEVICE_ID: unique per board (1-5). Required — prints a clear error if missing.
+_dev_id = os.getenv("DEVICE_ID")
+if _dev_id is None:
+    print("ERROR: DEVICE_ID not set in settings.toml — defaulting to 1. "
+          "Set DEVICE_ID = 1 (or 2-5) in CIRCUITPY/settings.toml.")
+DEVICE_ID = int(_dev_id) if _dev_id is not None else 1
 
-NEOPIXEL_PIN = board.D5    # GPIO pin connected to NeoPixel data line
-NUM_PIXELS = 40         # Number of NeoPixels on this device (change to match your strip)
+# NUM_PIXELS: number of NeoPixels on this device's strip.
+NUM_PIXELS = int(os.getenv("NUM_PIXELS", "40"))
+
+# NEOPIXEL_PIN: board pin name as a string, e.g. "D5".
+NEOPIXEL_PIN = getattr(board, os.getenv("NEOPIXEL_PIN", "D5"))
 
 # --- WiFi Simulation Mode ---
 # Listens for 9-byte UDP packets from the gateway over WiFi instead of (or alongside) LoRa.
-# Set WIFI_SIM_ENABLED = False to disable regardless of settings.toml contents.
-# WIFI_SIM_NETWORK:
-#   "ap"  — join the gateway's own AP (credentials from WIFI_AP_SSID/WIFI_AP_PASSWORD
-#           in settings.toml; defaults match gateway: "phosphene" / "gobo1234").
-#           No external network needed.
-#   "sta" — join an existing WiFi network (WIFI_SSID/WIFI_PASSWORD in settings.toml).
-WIFI_SIM_ENABLED = True
-WIFI_SIM_NETWORK = "ap"
+# WIFI_SIM_ENABLED: set to "0" in settings.toml to disable.
+# WIFI_SIM_NETWORK: "ap" = join gateway AP (default), "sta" = join existing network.
+WIFI_SIM_ENABLED = os.getenv("WIFI_SIM_ENABLED", "1") != "0"
+WIFI_SIM_NETWORK = os.getenv("WIFI_SIM_NETWORK", "ap")
 WIFI_SIM_PORT    = 5569   # Must match WIFI_SIM_PORT in gateway/code.py
 
 LORA_FREQ = 915.0       # MHz - must match gateway
