@@ -1,0 +1,67 @@
+# Phosphene board settings — SAMPLE FILE
+#
+# This file documents all available settings for gateway and endpoint boards.
+# To use: copy the relevant section to CIRCUITPY/settings.toml on each board
+# and fill in your real values. The per-board files in gateway/ and endpoint/
+# are gitignored so credentials stay off the repo.
+#
+# WARNING: Do NOT add CIRCUITPY_WIFI_SSID, CIRCUITPY_WIFI_PASSWORD, or
+# CIRCUITPY_WEB_API_PASSWORD to your board's settings.toml — those activate
+# CircuitPython's built-in web workflow, which makes the CIRCUITPY drive
+# read-only over USB.
+
+# =============================================================================
+# GATEWAY board — copy everything in this section
+# =============================================================================
+
+# --- WiFi AP (endpoints join this network in sim mode) ---
+WIFI_AP_SSID = "phosphene"
+WIFI_AP_PASSWORD = "gobo1234"
+
+# --- Station WiFi (used when WIFI_SIM_NETWORK = "sta") ---
+WIFI_SSID = "your_network_name"
+WIFI_PASSWORD = "your_network_password"
+
+# --- WiFi sim mode ---
+# WIFI_SIM_ENABLED: 1 = enabled (default), 0 = disabled
+# WIFI_SIM_NETWORK: "ap" = use gateway's own AP (default), "sta" = use station network
+WIFI_SIM_ENABLED = 1
+WIFI_SIM_NETWORK = "ap"
+
+# --- Protocol: "sacn" or "artnet" ---
+PROTOCOL = "sacn"
+
+# --- Ethernet (used for sACN/ArtNet from Eos) ---
+# USE_DHCP: 1 = DHCP, 0 = static IP
+USE_DHCP    = 0
+STATIC_IP   = "192.168.1.50"
+SUBNET_MASK = "255.255.255.0"
+GATEWAY_IP  = "192.168.1.1"
+DNS_SERVER  = "8.8.8.8"
+
+# --- Universe (must match Eos output config) ---
+SACN_UNIVERSE   = 1
+ARTNET_UNIVERSE = 1
+
+# =============================================================================
+# ENDPOINT board — copy everything in this section (one settings.toml per board)
+# =============================================================================
+
+# --- Required: change per board ---
+DEVICE_ID  = 1        # Unique ID for this endpoint (1-5)
+NUM_PIXELS = 40       # Number of NeoPixels on this device's strip
+NEOPIXEL_PIN = "D5"   # Board pin name connected to NeoPixel data line
+
+# --- WiFi sim mode ---
+# WIFI_SIM_ENABLED: 1 = enabled (default), 0 = disabled
+# WIFI_SIM_NETWORK: "ap" = join gateway AP (default), "sta" = use station network
+WIFI_SIM_ENABLED = 1
+WIFI_SIM_NETWORK = "ap"
+
+# Credentials for WIFI_SIM_NETWORK = "ap" (must match gateway AP settings above)
+WIFI_AP_SSID = "phosphene"
+WIFI_AP_PASSWORD = "gobo1234"
+
+# Credentials for WIFI_SIM_NETWORK = "sta"
+WIFI_SSID = "your_network_name"
+WIFI_PASSWORD = "your_network_password"

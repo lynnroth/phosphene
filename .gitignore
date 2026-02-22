@@ -11,9 +11,10 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Secrets / local config (if you ever split settings out)
+# Secrets / local config — board-specific files with real credentials
 secrets.py
-settings.toml
+gateway/settings.toml
+endpoint/settings.toml
 
 # Local library downloads (install to board manually)
 lib-download/
