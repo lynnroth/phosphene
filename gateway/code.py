@@ -113,32 +113,35 @@ AP_PASSWORD = os.getenv("WIFI_AP_PASSWORD", "gobo1234")
 
 # --- WiFi Simulation Mode ---
 # Broadcasts the same 9-byte packets over UDP so endpoints can receive them without LoRa.
-# Set WIFI_SIM_ENABLED = False to disable regardless of network availability.
-# WIFI_SIM_NETWORK:
-#   "ap"  — broadcast on the gateway's own AP subnet (192.168.4.x).
-#           Endpoints join the "phosphene" AP; no external network needed.
-#   "sta" — broadcast on the station network (requires gateway to be connected to WiFi).
-WIFI_SIM_ENABLED = True
-WIFI_SIM_NETWORK = "ap"
+# WIFI_SIM_ENABLED: set "0" in settings.toml to disable.
+# WIFI_SIM_NETWORK: "ap" = use gateway's own AP (default), "sta" = use station network.
+WIFI_SIM_ENABLED = os.getenv("WIFI_SIM_ENABLED", "1") != "0"
+WIFI_SIM_NETWORK = os.getenv("WIFI_SIM_NETWORK", "ap")
 WIFI_SIM_PORT    = 5569   # Must match WIFI_SIM_PORT on all endpoints
 
 # --- Protocol Selection ---
-# Set to "sacn" for sACN (E1.31) or "artnet" for ArtNet
-PROTOCOL = "artnet"
+# "sacn" for sACN (E1.31) or "artnet" for ArtNet — must match Eos output type
+PROTOCOL = os.getenv("PROTOCOL", "sacn")
 
-# --- Network ---
-USE_DHCP       = False
-STATIC_IP      = (192, 168, 1, 50)   # Change to match your network
-SUBNET_MASK    = (255, 255, 255, 0)
-GATEWAY_IP     = (192, 168, 1, 1)
-DNS_SERVER     = (8, 8, 8, 8)
-MAC_ADDRESS    = b"\xDE\xAD\xBE\xEF\xFE\x01"  # Must be unique on your network
+# --- Ethernet Network ---
+# USE_DHCP: set "1" in settings.toml to use DHCP instead of static IP
+USE_DHCP = os.getenv("USE_DHCP", "0") != "0"
+
+def _parse_ip(key, default):
+    s = os.getenv(key, default)
+    return tuple(int(x) for x in s.split("."))
+
+STATIC_IP   = _parse_ip("STATIC_IP",   "192.168.1.50")
+SUBNET_MASK = _parse_ip("SUBNET_MASK", "255.255.255.0")
+GATEWAY_IP  = _parse_ip("GATEWAY_IP",  "192.168.1.1")
+DNS_SERVER  = _parse_ip("DNS_SERVER",  "8.8.8.8")
+MAC_ADDRESS = b"\xDE\xAD\xBE\xEF\xFE\x01"  # Must be unique on your network
 
 # Protocol-specific settings
 SACN_PORT       = 5568   # Standard sACN port, do not change
-SACN_UNIVERSE   = 1      # Must match Eos output universe config
+SACN_UNIVERSE   = int(os.getenv("SACN_UNIVERSE",   "1"))  # Must match Eos output universe
 ARTNET_PORT     = 6454   # Standard ArtNet port, do not change
-ARTNET_UNIVERSE = 1      # ArtNet universe to listen for (0-15)
+ARTNET_UNIVERSE = int(os.getenv("ARTNET_UNIVERSE", "1"))  # Must match Eos output universe
 
 # --- LoRa ---
 LORA_FREQ      = 915.0  # MHz - must match all endpoints
