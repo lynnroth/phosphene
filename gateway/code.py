@@ -62,6 +62,7 @@ import struct
 import board
 import busio
 import digitalio
+import neopixel
 import adafruit_rfm9x
 from adafruit_wiznet5k.adafruit_wiznet5k import WIZNET5K
 import adafruit_wiznet5k.adafruit_wiznet5k_socketpool as wiznet_socketpool
@@ -123,7 +124,7 @@ WIFI_SIM_PORT    = 5569   # Must match WIFI_SIM_PORT on all endpoints
 
 # --- Protocol Selection ---
 # Set to "sacn" for sACN (E1.31) or "artnet" for ArtNet
-PROTOCOL = "sacn"
+PROTOCOL = "artnet"
 
 # --- Network ---
 USE_DHCP       = False
@@ -149,6 +150,19 @@ LORA_TX_POWER  = 13
 # --- Redundant Send ---
 SEND_REPEATS    = 3     # How many times to transmit each command
 SEND_REPEAT_GAP = 0.05  # Seconds between repeats (50ms)
+
+# --- Status NeoPixel ---
+# Flashes the onboard NeoPixel when a command is sent.
+# Colors per device ID (R, G, B) at a low brightness.
+PIXEL_FLASH_SEC = 0.15  # How long the flash lasts
+PIXEL_COLORS = {
+    0: (180,  80,   0),   # Broadcast  — amber
+    1: (180,   0,   0),   # Device 1   — red
+    2: (  0, 180,   0),   # Device 2   — green
+    3: (  0,   0, 180),   # Device 3   — blue
+    4: (  0, 160, 160),   # Device 4   — cyan
+    5: (160,   0, 160),   # Device 5   — magenta
+}
 
 # --- Device Patch Map ---
 # Maps Device ID -> DMX start address (1-based, as shown in Eos patch)
@@ -269,6 +283,18 @@ except Exception as e:
 # WIFI ACCESS POINT + HTTP SERVER
 # =============================================================================
 
+# Status NeoPixel (board.NEOPIXEL — single pixel on Feather ESP32-S3)
+status_pixel = neopixel.NeoPixel(board.NEOPIXEL, 1, brightness=1.0, auto_write=True)
+status_pixel[0] = (0, 0, 0)
+_pixel_off_at = 0.0
+
+def flash_pixel(device_id):
+    """Flash the onboard NeoPixel in the color for the given device ID."""
+    global _pixel_off_at
+    color = PIXEL_COLORS.get(device_id, (100, 100, 100))
+    status_pixel[0] = color
+    _pixel_off_at = time.monotonic() + PIXEL_FLASH_SEC
+
 log(f"Starting WiFi AP '{AP_SSID}'...")
 try:
     wifi.radio.start_ap(ssid=AP_SSID, password=AP_PASSWORD)
@@ -336,6 +362,7 @@ def handle_send(request: Request):
         command_id = (command_id + 1) & 0xFF
         schedule_sends(packet)
         last_web_cmd = {"preset": preset, "device": device, "t": time.monotonic()}
+        flash_pixel(device)
         log(f"[WEB] Device {device} -> Preset={preset} Int={intensity} "
             f"RGB=({r},{g},{b}) Spd={speed}")
         return JSONResponse(request, {"ok": True}, headers={"Connection": "close"})
@@ -571,6 +598,7 @@ def check_device_changes():
             schedule_sends(packet)
             log(f"[sACN] Device {device_id} -> Preset={preset} Int={intensity} "
                 f"RGB=({r},{g},{b}) Spd={speed} CmdID={command_id}")
+            flash_pixel(device_id)
             command_id = (command_id + 1) & 0xFF
 
 
@@ -625,6 +653,11 @@ while True:
         log(f"[server.poll OSError] {e}")
     except Exception as e:
         log(f"[server.poll ERROR] {type(e).__name__}: {e}")
+
+    # --- Status pixel off timer ---
+    if _pixel_off_at and now >= _pixel_off_at:
+        status_pixel[0] = (0, 0, 0)
+        _pixel_off_at = 0.0
 
     # --- Periodic GC (~every 5s at 500 ticks × 10ms) ---
     if loop_tick % 500 == 0:
