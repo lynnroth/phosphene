@@ -140,6 +140,7 @@ PRESET_FLICKER           = 23   # random intensity drops, like a bad fluorescent
 PRESET_THEATER_CHASE     = 24   # classic every-third-pixel marquee chase
 PRESET_RAINBOW_CHASE     = 25   # rainbow marquee
 PRESET_AURORA            = 26   # northern lights, slow drifting colors
+PRESET_WAVE_PASTEL       = 27   # sine wave from soft white to color, never goes dark
 
 # =============================================================================
 # HARDWARE INIT
@@ -1034,6 +1035,36 @@ def effect_wave():
     pixels.show()
 
 
+def effect_wave_pastel():
+    """
+    Rainbow hues distributed across the strip, pulsing with a traveling sine wave.
+    Saturation rises at the wave crest and drops to near-white at the trough, keeping
+    all colors soft and pastel. Speed controls pulse travel. Intensity controls brightness.
+    Color channel is ignored — hues cycle through the full spectrum automatically.
+    """
+    global wave_offset, rainbow_offset
+
+    step = speed_to_rate(current_speed, 0.02, 0.3)
+    wave_offset = (wave_offset + step) % (2 * math.pi)
+    # Rainbow drifts at 1/20th the wave step so hues shift gently while the wave pulses
+    rainbow_offset = (rainbow_offset + step * 0.05) % 1.0
+
+    scale = current_intensity / 255.0
+
+    for i in range(NUM_PIXELS):
+        hue = (rainbow_offset + i / NUM_PIXELS) % 1.0
+        phase = wave_offset + (i / NUM_PIXELS) * 2 * math.pi
+        lvl = (math.sin(phase) + 1.0) / 2.0  # 0.0 to 1.0
+        # Saturation follows the wave: 0 at trough (white) → 0.6 at crest (soft pastel)
+        sat = lvl * 0.6
+        # Value: 0.35 at trough → 1.0 at crest, all scaled by intensity
+        val = (0.35 + lvl * 0.65) * scale
+        r, g, b = hsv_to_rgb(hue, sat, val)
+        pixels[i] = (r, g, b)
+
+    pixels.show()
+
+
 def effect_flicker():
     """
     Like a bad fluorescent tube or dying torch. Random intensity drops per pixel.
@@ -1133,6 +1164,7 @@ EFFECTS = {
     PRESET_THEATER_CHASE:    effect_theater_chase,
     PRESET_RAINBOW_CHASE:    effect_rainbow_chase,
     PRESET_AURORA:           effect_aurora,
+    PRESET_WAVE_PASTEL:      effect_wave_pastel,
 }
 
 # =============================================================================

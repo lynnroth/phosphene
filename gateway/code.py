@@ -557,7 +557,7 @@ def dmx_to_preset(raw_value):
       100-104 = 20 Campfire       105-109 = 21 Confetti
       110-114 = 22 Wave           115-119 = 23 Flicker
       120-124 = 24 Theater Chase  125-129 = 25 Rainbow Chase
-      130-134 = 26 Aurora
+      130-134 = 26 Aurora         135-139 = 27 Wave Pastel
     """
     return min(raw_value // 5, 51)
 

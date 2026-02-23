@@ -91,6 +91,7 @@ Each preset occupies 5 DMX values.
 | 120–124 | 24 | Theater Chase |
 | 125–129 | 25 | Rainbow Chase |
 | 130–134 | 26 | Aurora |
+| 135–139 | 27 | Wave Pastel |
 
 ## Eos Patch
 
