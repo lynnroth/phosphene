@@ -18,3 +18,5 @@ endpoint/settings.toml
 
 # Local library downloads (install to board manually)
 lib-download/
+gateway/lib/
+endpoint/lib/
