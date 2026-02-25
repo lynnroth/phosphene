@@ -1298,6 +1298,7 @@ pixels.fill((0, 0, 0))
 pixels.show()
 
 _sim_buf = bytearray(16)  # Reusable receive buffer for WiFi sim packets
+_loop_tick = 0
 
 print("Entering main loop...")
 
@@ -1326,5 +1327,10 @@ while True:
     # --- Run current effect ---
     effect_fn = EFFECTS.get(current_preset, effect_solid)
     effect_fn()
+
+    # --- Remind user of connection info every 30s ---
+    if _loop_tick % 3000 == 0 and sim_udp is not None:
+        print(f"Endpoint {DEVICE_ID} | IP {wifi.radio.ipv4_address} | listening UDP :{WIFI_SIM_PORT}")
+    _loop_tick += 1
 
     time.sleep(0.01)  # 10ms = ~100fps

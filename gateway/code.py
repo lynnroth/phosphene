@@ -665,6 +665,13 @@ while True:
     # --- Periodic GC (~every 5s at 500 ticks × 10ms) ---
     if loop_tick % 500 == 0:
         gc.collect()
+
+    # --- Remind user of web UI address every 30s ---
+    if loop_tick % 3000 == 0:
+        log(f"Web UI: http://{ap_ip}:8080")
+        if sta_ip:
+            log(f"        http://{sta_ip}:8080")
+
     loop_tick += 1
 
     time.sleep(0.010)   # 10ms — keeps loop responsive without burning CPU
