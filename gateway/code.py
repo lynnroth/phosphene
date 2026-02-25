@@ -375,6 +375,17 @@ def handle_send(request: Request):
                             headers={"Connection": "close"})
 
 
+# Join station network if credentials are configured (runs alongside AP)
+_sta_ssid = os.getenv("WIFI_SSID")
+_sta_pass = os.getenv("WIFI_PASSWORD", "")
+if _sta_ssid:
+    log(f"Connecting to WiFi network '{_sta_ssid}'...")
+    try:
+        wifi.radio.connect(_sta_ssid, _sta_pass)
+        log(f"Station WiFi connected | IP {wifi.radio.ipv4_address}")
+    except Exception as e:
+        log(f"Station WiFi failed: {e} (AP still active)")
+
 sta_ip = str(wifi.radio.ipv4_address) if wifi.radio.ipv4_address else None
 
 # WiFi sim: broadcast LoRa packets over UDP when station connection is available
