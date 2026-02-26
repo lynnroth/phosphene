@@ -36,6 +36,13 @@ select{background:#1a1a1a;color:#e8dcc8;border:1px solid #333;padding:8px 12px;f
 .preset-btn.cat-theater{border-left:3px solid #c8aa2a}
 .statusbar{border-top:1px solid #222;margin-top:8px;padding-top:10px;font-size:12px;color:#555;line-height:1.8}
 .statusbar span{color:#888}
+.ack-btn{background:#1a1a1a;border:1px solid #333;color:#555;font-family:inherit;font-size:11px;padding:4px 8px;border-radius:10px;cursor:pointer;letter-spacing:.05em}
+.ack-btn.on{background:#1a3a1a;border-color:#4caf50;color:#4caf50}
+.ep-dot{width:22px;height:30px;border-radius:3px;background:#2a2a2a;color:#555;font-size:9px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:default;font-weight:600;gap:2px}
+.ep-dot.green{background:#4caf50;color:#0a1a0a}
+.ep-dot.amber{background:#ff9800;color:#1a0e00}
+.ep-bat{display:flex;gap:1px}
+.ep-bar{width:3px;height:4px;border-radius:1px;background:rgba(0,0,0,0.25)}
 </style>
 </head>
 <body>
@@ -47,6 +54,8 @@ select{background:#1a1a1a;color:#e8dcc8;border:1px solid #333;padding:8px 12px;f
     <div class="dot" id="dot-eth" title="Ethernet"></div>
     <span class="dot-label">wifi</span>
     <div class="dot" id="dot-wifi" title="WiFi clients"></div>
+    <div id="ep-dots" style="display:flex;gap:4px;align-items:center;margin-left:4px"></div>
+    <button class="ack-btn" id="ack-btn" onclick="toggleAck()" title="Toggle endpoint ACK">ACK OFF</button>
   </div>
 </header>
 
@@ -100,6 +109,8 @@ const PRESETS=[
 const state={device:0,preset:4,intensity:200,r:255,g:255,b:255,speed:128};
 let debounce=null;
 let activeBtn=null;
+let ackMode=false;
+const seenDevices=new Set();
 
 // Build preset grid
 const grid=document.getElementById("presets");
@@ -118,6 +129,7 @@ PRESETS.forEach(([id,name,cat])=>{
   });
   grid.appendChild(btn);
 });
+
 
 function hexToRgb(hex){
   const r=parseInt(hex.slice(1,3),16);
@@ -153,6 +165,34 @@ function debouncedSend(){
   debounce=setTimeout(send,100);
 }
 
+function updateAckBtn(){
+  const btn=document.getElementById("ack-btn");
+  btn.className=ackMode?"ack-btn on":"ack-btn";
+  btn.textContent=ackMode?"ACK ON":"ACK OFF";
+}
+
+function updateBatBars(dev,pct){
+  const c=document.getElementById("ep-bat-"+dev);
+  if(!c)return;
+  const filled=pct===255?0:pct>=80?5:pct>=60?4:pct>=40?3:pct>=20?2:1;
+  const col=pct!==255&&pct<20?"#ff5555":pct<40?"#ffbb44":"#66ff66";
+  const bars=c.children;
+  for(let i=0;i<5;i++){
+    bars[i].style.background=i<filled?col:"rgba(0,0,0,0.25)";
+  }
+}
+
+function toggleAck(){
+  fetch("/config",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({ack_mode:!ackMode})
+  }).then(r=>r.json()).then(d=>{
+    ackMode=d.ack_mode;
+    updateAckBtn();
+  }).catch(()=>{});
+}
+
 const PRESET_NAMES=Object.fromEntries(PRESETS.map(([id,name])=>[id,name]));
 
 function send(){
@@ -182,6 +222,39 @@ function pollStatus(){
     wifiDot.className="dot"+(d.wifi_clients>0?" ok":" warn");
     document.getElementById("st-eth").textContent=d.eth_link?"linked":"no link";
     document.getElementById("st-wifi").textContent=d.wifi_clients+" client"+(d.wifi_clients!==1?"s":"");
+    if(d.ack_mode!==undefined&&d.ack_mode!==ackMode){ackMode=d.ack_mode;updateAckBtn();}
+    if(d.ack_status){
+      const c=document.getElementById("ep-dots");
+      for(const[idStr,info]of Object.entries(d.ack_status)){
+        if(!info)continue;
+        const dev=parseInt(idStr);
+        if(!seenDevices.has(dev)){
+          seenDevices.add(dev);
+          const b=document.createElement("div");
+          b.className="ep-dot";b.id="ep-dot-"+dev;b.dataset.dev=dev;
+          const numEl=document.createElement("span");numEl.textContent=dev;b.appendChild(numEl);
+          const batEl=document.createElement("div");batEl.className="ep-bat";batEl.id="ep-bat-"+dev;
+          for(let i=0;i<5;i++){const bar=document.createElement("span");bar.className="ep-bar";batEl.appendChild(bar);}
+          b.appendChild(batEl);
+          let placed=false;
+          for(const ch of c.children){if(+(ch.dataset.dev)>dev){c.insertBefore(b,ch);placed=true;break;}}
+          if(!placed)c.appendChild(b);
+        }
+        const dot=document.getElementById("ep-dot-"+dev);
+        if(dot){
+          const batStr=info.bat!==255?info.bat+"%":"N/A";
+          dot.title="RSSI: "+info.rssi+" dBm | Bat: "+batStr+" | "+info.age+"s ago";
+          dot.className="ep-dot"+(info.age<30?" green":info.age<60?" amber":"");
+          updateBatBars(dev,info.bat!==undefined?info.bat:255);
+        }
+      }
+      for(const dev of seenDevices){
+        if(!d.ack_status[String(dev)]){
+          const dot=document.getElementById("ep-dot-"+dev);
+          if(dot){dot.className="ep-dot";dot.title="Dev "+dev+" (no recent ACK)";updateBatBars(dev,255);}
+        }
+      }
+    }
   }).catch(()=>{
     document.getElementById("dot-eth").className="dot";
     document.getElementById("dot-wifi").className="dot";

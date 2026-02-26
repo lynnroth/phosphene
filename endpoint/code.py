@@ -57,6 +57,8 @@ import neopixel
 import wifi
 import socketpool
 import adafruit_rfm9x
+import adafruit_max1704x
+import adafruit_lc709203f
 
 # =============================================================================
 # CONFIGURATION — per-device settings loaded from CIRCUITPY/settings.toml
@@ -109,9 +111,21 @@ DEDUP_WINDOW = 1.0      # seconds
 # Byte 5:  Green
 # Byte 6:  Blue
 # Byte 7:  Speed (0=slow, 255=fast)
-# Byte 8:  Checksum (XOR of bytes 0-7)
+# Byte 8:  Config flags (bit 0 = CONFIG_ACK_REQUESTED)
+# Byte 9:  Reserved (0x00)
+# Byte 10: Reserved (0x00)
+# Byte 11: Checksum (XOR of bytes 0-10)
 
-PACKET_SIZE = 9
+PACKET_SIZE          = 12
+ACK_PACKET_SIZE      = 7
+ACK_MARKER           = 0xAC
+CONFIG_ACK_REQUESTED = 0x01
+ACK_PORT             = 5570
+BASE_ACK_DELAY       = 0.15
+ACK_STAGGER          = 0.08
+
+PING_MARKER      = 0xBB
+PING_PACKET_SIZE = 4
 
 PRESET_BLACKOUT          = 0
 PRESET_SPARKLE           = 1
@@ -155,6 +169,40 @@ pixels = neopixel.NeoPixel(
     pixel_order=neopixel.GRB
 )
 
+# Battery monitor — try MAX17048 first, fall back to LC709203F
+_bat_monitor = None
+try:
+    _bat_i2c = board.I2C()
+    try:
+        _bat_monitor = adafruit_max1704x.MAX17048(_bat_i2c)
+        print(f"Battery monitor ready (MAX17048 | {_bat_monitor.cell_voltage:.2f}V "
+              f"{_bat_monitor.cell_percent:.0f}%)")
+    except ValueError:
+        try:
+            _bat_monitor = adafruit_lc709203f.LC709203F(_bat_i2c)
+            _bat_monitor.thermistor_bconstant = 3950
+            _bat_monitor.pack_size = adafruit_lc709203f.PackSize.MAH500
+            print(f"Battery monitor ready (LC709203F | {_bat_monitor.cell_voltage:.2f}V "
+                  f"{_bat_monitor.cell_percent:.0f}%)")
+        except ValueError:
+            print("No battery monitor chip found (tried MAX17048 and LC709203F)")
+except Exception as e:
+    _bat_monitor = None
+    if "in use" in str(e).lower():
+        print(f"Battery monitor unavailable: I2C bus already claimed ({e})")
+        print("  Check CIRCUITPY/boot.py — something may have called busio.I2C() there.")
+    else:
+        print(f"Battery monitor unavailable: {e}")
+
+def read_battery_pct():
+    """Return battery percentage 0-100, or 255 if not available."""
+    if _bat_monitor is None:
+        return 255
+    try:
+        return max(0, min(100, int(_bat_monitor.cell_percent)))
+    except Exception:
+        return 255
+
 # LoRa Radio — RFM95W Breakout (#3072) on primary SPI bus
 # board.SCK=SCK, board.MOSI=MOSI, board.MISO=MISO, CS=D9, RST=D10, G0/IRQ=D11
 spi = busio.SPI(clock=board.SCK, MOSI=board.MOSI, MISO=board.MISO)
@@ -181,6 +229,7 @@ except Exception as e:
     print("LoRa receive disabled — WiFi sim still active if configured")
 
 # WiFi sim mode — connect to a network and listen for UDP packets from gateway
+_ack_gateway_ip = None
 sim_udp = None
 if WIFI_SIM_ENABLED:
     if WIFI_SIM_NETWORK == "ap":
@@ -196,6 +245,8 @@ if WIFI_SIM_ENABLED:
             print(f"Connecting to {_sim_label}...")
             wifi.radio.connect(_sim_ssid, _sim_pass)
             print(f"WiFi connected | IP {wifi.radio.ipv4_address}")
+            _gw = wifi.radio.ipv4_gateway
+            _ack_gateway_ip = str(_gw) if _gw else None
             _pool = socketpool.SocketPool(wifi.radio)
             sim_udp = _pool.socket(_pool.AF_INET, _pool.SOCK_DGRAM)
             sim_udp.bind(("0.0.0.0", WIFI_SIM_PORT))
@@ -214,7 +265,7 @@ else:
 # =============================================================================
 
 # Current effect parameters (set by received LoRa packet)
-current_preset    = PRESET_SOLID
+current_preset    = PRESET_BLACKOUT
 current_intensity = 128
 current_r         = 255
 current_g         = 255
@@ -302,6 +353,11 @@ flicker_levels    = [1.0] * NUM_PIXELS
 # Aurora state - per-pixel hue
 aurora_hues       = [random.random() for _ in range(NUM_PIXELS)]
 
+# ACK state
+ack_pending       = None   # (send_at, ack_bytes) or None
+last_ping_seq     = -1
+last_ping_time    = 0.0
+
 # =============================================================================
 # HELPERS
 # =============================================================================
@@ -317,9 +373,9 @@ def verify_checksum(packet):
     if len(packet) < PACKET_SIZE:
         return False
     checksum = 0
-    for b in packet[:8]:
+    for b in packet[:11]:
         checksum ^= b
-    return checksum == packet[8]
+    return checksum == packet[11]
 
 
 def speed_to_rate(speed_byte, slow_val, fast_val):
@@ -1190,14 +1246,15 @@ def apply_packet(packet):
         print("  Checksum failed, ignoring")
         return False
 
-    device_id  = packet[0]
-    command_id = packet[1]
-    preset     = packet[2]
-    intensity  = packet[3]
-    r          = packet[4]
-    g          = packet[5]
-    b          = packet[6]
-    speed      = packet[7]
+    device_id    = packet[0]
+    command_id   = packet[1]
+    preset       = packet[2]
+    intensity    = packet[3]
+    r            = packet[4]
+    g            = packet[5]
+    b            = packet[6]
+    speed        = packet[7]
+    config_flags = packet[8]
 
     # Check if this packet is for us (our ID or broadcast)
     if device_id != 0 and device_id != DEVICE_ID:
@@ -1215,6 +1272,9 @@ def apply_packet(packet):
     last_command_time = now
 
     print(f"  CMD {command_id} | Preset {preset} | RGBA({r},{g},{b}) Int={intensity} Spd={speed}")
+
+    if config_flags & CONFIG_ACK_REQUESTED:
+        _schedule_ack(command_id)
 
     # If preset is changing, reset animation state for a clean transition
     if preset != current_preset:
@@ -1286,6 +1346,45 @@ def apply_packet(packet):
     return True
 
 
+def handle_ping(packet):
+    """Process a received ping packet and schedule an ACK response."""
+    global last_ping_seq, last_ping_time
+    if len(packet) < PING_PACKET_SIZE or packet[0] != PING_MARKER:
+        return False
+    cs = packet[0] ^ packet[1] ^ packet[2]
+    if cs != packet[3]:
+        return False
+    device_id = packet[1]
+    if device_id != 0 and device_id != DEVICE_ID:
+        return False
+    ping_seq = packet[2]
+    now = time.monotonic()
+    if ping_seq == last_ping_seq and (now - last_ping_time) < 2.0:
+        return True  # dedup — already responded to this ping
+    last_ping_seq = ping_seq
+    last_ping_time = now
+    print(f"[PING RX] seq={ping_seq}")
+    _schedule_ack(ping_seq)
+    return True
+
+
+def _schedule_ack(cmd_id):
+    """Schedule an ACK packet to be sent after the stagger delay."""
+    global ack_pending
+    rssi_raw = rfm9x.last_rssi if rfm9x is not None else 0
+    rssi_enc = (rssi_raw + 200) & 0xFF
+    bat = read_battery_pct()
+    pkt = bytearray(ACK_PACKET_SIZE)
+    pkt[0] = ACK_MARKER
+    pkt[1] = DEVICE_ID
+    pkt[2] = cmd_id & 0xFF
+    pkt[3] = rssi_enc
+    pkt[4] = bat
+    pkt[5] = 0x00
+    pkt[6] = pkt[0] ^ pkt[1] ^ pkt[2] ^ pkt[3] ^ pkt[4] ^ pkt[5]
+    ack_pending = (time.monotonic() + BASE_ACK_DELAY + DEVICE_ID * ACK_STAGGER, bytes(pkt))
+
+
 # =============================================================================
 # MAIN LOOP
 # =============================================================================
@@ -1307,22 +1406,45 @@ while True:
     if rfm9x is not None:
         packet = rfm9x.receive(timeout=0.0)
         if packet is not None:
-            print(f"[LORA RX] RSSI={rfm9x.last_rssi}dBm "
-                  f"dev={packet[0]} cmd={packet[1]} preset={packet[2]} "
-                  f"int={packet[3]} rgb=({packet[4]},{packet[5]},{packet[6]})")
-            apply_packet(packet)
+            if len(packet) >= PING_PACKET_SIZE and packet[0] == PING_MARKER:
+                print(f"[LORA RX] PING RSSI={rfm9x.last_rssi}dBm seq={packet[2] if len(packet) > 2 else '?'}")
+                handle_ping(packet)
+            else:
+                print(f"[LORA RX] RSSI={rfm9x.last_rssi}dBm "
+                      f"dev={packet[0]} cmd={packet[1]} preset={packet[2]} "
+                      f"int={packet[3]} rgb=({packet[4]},{packet[5]},{packet[6]})")
+                apply_packet(packet)
 
     # --- Check for incoming WiFi sim packet (non-blocking) ---
     if sim_udp is not None:
         try:
             nbytes, addr = sim_udp.recvfrom_into(_sim_buf)
-            if nbytes >= 9:
+            if nbytes >= PING_PACKET_SIZE and _sim_buf[0] == PING_MARKER:
+                print(f"[SIM PING] from={addr[0]} seq={_sim_buf[2]}")
+                handle_ping(_sim_buf)
+            elif nbytes >= PACKET_SIZE:
                 print(f"[SIM RX]  from={addr[0]} "
                       f"dev={_sim_buf[0]} cmd={_sim_buf[1]} preset={_sim_buf[2]} "
                       f"int={_sim_buf[3]} rgb=({_sim_buf[4]},{_sim_buf[5]},{_sim_buf[6]})")
                 apply_packet(_sim_buf)
         except OSError:
             pass  # No packet available
+
+    # --- Send pending ACK ---
+    if ack_pending is not None:
+        ack_send_at, ack_pkt = ack_pending
+        if time.monotonic() >= ack_send_at:
+            if rfm9x is not None:
+                rfm9x.send(ack_pkt)
+            if sim_udp is not None and _ack_gateway_ip is not None:
+                try:
+                    sim_udp.sendto(ack_pkt, (_ack_gateway_ip, ACK_PORT))
+                except OSError:
+                    pass
+            bat_val = ack_pkt[4]
+            bat_str = f"{bat_val}%" if bat_val != 255 else "N/A"
+            print(f"[ACK TX] dev={DEVICE_ID} cmd={ack_pkt[2]} rssi={ack_pkt[3]-200}dBm bat={bat_str}")
+            ack_pending = None
 
     # --- Run current effect ---
     effect_fn = EFFECTS.get(current_preset, effect_solid)

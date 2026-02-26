@@ -189,7 +189,10 @@ DEVICE_PATCH = {
 # Byte 5:  G
 # Byte 6:  B
 # Byte 7:  Speed
-# Byte 8:  Checksum (XOR bytes 0-7)
+# Byte 8:  Config flags (bit 0 = CONFIG_ACK_REQUESTED)
+# Byte 9:  Reserved (0x00)
+# Byte 10: Reserved (0x00)
+# Byte 11: Checksum (XOR bytes 0-10)
 
 CH_PRESET           = 0
 CH_INTENSITY        = 1
@@ -198,6 +201,17 @@ CH_GREEN            = 3
 CH_BLUE             = 4
 CH_SPEED            = 5
 CHANNELS_PER_DEVICE = 7
+
+# ACK packet constants (endpoint → gateway)
+ACK_MARKER           = 0xAC
+ACK_PACKET_SIZE      = 7
+ACK_PORT             = 5570
+ACK_TIMEOUT          = 60    # Seconds before an ACK entry is considered stale
+CONFIG_ACK_REQUESTED = 0x01  # Bit 0 of config flags: request ACK from endpoint
+
+PING_MARKER      = 0xBB
+PING_PACKET_SIZE = 4
+PING_INTERVAL    = 30    # seconds between ping broadcasts (only when ack_mode ON)
 
 # =============================================================================
 # sACN (E1.31) PROTOCOL CONSTANTS
@@ -324,6 +338,7 @@ def serve_ui(request: Request):
 
 @server.route("/status")
 def handle_status(request: Request):
+    now = time.monotonic()
     clients = 0
     try:
         ap = wifi.radio.ap_info
@@ -335,7 +350,14 @@ def handle_status(request: Request):
         "eth_link": bool(eth.link_status) if eth is not None else False,
         "wifi_clients": clients,
         "last_cmd": last_web_cmd,
-        "rssi": {}
+        "rssi": {},
+        "ack_mode": ack_mode,
+        "ack_status": {
+            str(dev_id): ({"age": round(now - info["t"], 1), "rssi": info["rssi"], "bat": info["bat"]}
+                          if (now - info["t"]) < ACK_TIMEOUT else None)
+                         if info else None
+            for dev_id, info in ack_status.items()
+        }
     }, headers={"Connection": "close"})
 
 
@@ -361,7 +383,8 @@ def handle_send(request: Request):
         b         = max(0, min(255, b))
         speed     = max(0, min(255, speed))
 
-        packet = build_packet(device, command_id, preset, intensity, r, g, b, speed)
+        packet = build_packet(device, command_id, preset, intensity, r, g, b, speed,
+                              config_flags=CONFIG_ACK_REQUESTED if ack_mode else 0)
         command_id = (command_id + 1) & 0xFF
         schedule_sends(packet)
         last_web_cmd = {"preset": preset, "device": device, "t": time.monotonic()}
@@ -373,6 +396,16 @@ def handle_send(request: Request):
         log(f"[WEB /send ERROR] {type(e).__name__}: {e}")
         return JSONResponse(request, {"ok": False, "error": str(e)},
                             headers={"Connection": "close"})
+
+
+@server.route("/config", [POST])
+def handle_config(request: Request):
+    global ack_mode
+    data = request.json()
+    if "ack_mode" in data:
+        ack_mode = bool(data["ack_mode"])
+        log(f"[CONFIG] ack_mode={'ON' if ack_mode else 'OFF'}")
+    return JSONResponse(request, {"ack_mode": ack_mode}, headers={"Connection": "close"})
 
 
 # Join station network if credentials are configured (runs alongside AP)
@@ -416,6 +449,16 @@ if WIFI_SIM_ENABLED:
 else:
     _sim_addr = None
     log("WiFi sim mode disabled (WIFI_SIM_ENABLED = False)")
+
+_ack_buf = bytearray(16)
+try:
+    ack_udp = ap_pool.socket(ap_pool.AF_INET, ap_pool.SOCK_DGRAM)
+    ack_udp.bind(("0.0.0.0", ACK_PORT))
+    ack_udp.settimeout(0)
+    log(f"ACK listener on UDP :{ACK_PORT}")
+except Exception as e:
+    ack_udp = None
+    log(f"WARNING: ACK UDP socket failed: {e}")
 
 log("Starting HTTP server on port 8080...")
 try:
@@ -464,6 +507,10 @@ command_id        = 0
 pending_sends     = []   # List of (send_at_time, packet_bytes)
 last_web_cmd      = {}   # Most recent command from web UI (for /status)
 loop_tick         = 0
+ack_mode          = False
+ack_status        = {1: None, 2: None, 3: None, 4: None, 5: None}
+_ping_seq         = 0
+_last_ping        = 0.0
 
 # =============================================================================
 # PROTOCOL PARSING
@@ -531,21 +578,24 @@ def parse_artnet(data):
 # LORA PACKET BUILDING
 # =============================================================================
 
-def build_packet(device_id, cmd_id, preset, intensity, r, g, b, speed):
-    """Build a 9-byte LoRa command packet with XOR checksum."""
-    data = bytearray(9)
-    data[0] = device_id  & 0xFF
-    data[1] = cmd_id     & 0xFF
-    data[2] = preset     & 0xFF
-    data[3] = intensity  & 0xFF
-    data[4] = r          & 0xFF
-    data[5] = g          & 0xFF
-    data[6] = b          & 0xFF
-    data[7] = speed      & 0xFF
+def build_packet(device_id, cmd_id, preset, intensity, r, g, b, speed, config_flags=0):
+    """Build a 12-byte LoRa command packet with XOR checksum."""
+    data = bytearray(12)
+    data[0]  = device_id    & 0xFF
+    data[1]  = cmd_id       & 0xFF
+    data[2]  = preset       & 0xFF
+    data[3]  = intensity    & 0xFF
+    data[4]  = r            & 0xFF
+    data[5]  = g            & 0xFF
+    data[6]  = b            & 0xFF
+    data[7]  = speed        & 0xFF
+    data[8]  = config_flags & 0xFF
+    data[9]  = 0x00
+    data[10] = 0x00
     checksum = 0
-    for byte in data[:8]:
+    for byte in data[:11]:
         checksum ^= byte
-    data[8] = checksum
+    data[11] = checksum
     return bytes(data)
 
 
@@ -580,6 +630,33 @@ def schedule_sends(packet):
         pending_sends.append((now + (i * SEND_REPEAT_GAP), packet))
 
 
+def build_ping_packet(device_id=0):
+    """Build a 4-byte broadcast ping packet (gateway → endpoints)."""
+    global _ping_seq
+    pkt = bytearray(PING_PACKET_SIZE)
+    pkt[0] = PING_MARKER
+    pkt[1] = device_id & 0xFF
+    pkt[2] = _ping_seq & 0xFF
+    pkt[3] = pkt[0] ^ pkt[1] ^ pkt[2]
+    _ping_seq = (_ping_seq + 1) & 0xFF
+    return bytes(pkt)
+
+
+def _process_ack(pkt):
+    """Parse and record an ACK packet from an endpoint."""
+    if len(pkt) < ACK_PACKET_SIZE or pkt[0] != ACK_MARKER:
+        return
+    cs = pkt[0] ^ pkt[1] ^ pkt[2] ^ pkt[3] ^ pkt[4] ^ pkt[5]
+    if cs != pkt[6]:
+        return
+    dev_id = pkt[1]
+    rssi   = pkt[3] - 200
+    bat    = pkt[4]
+    ack_status[dev_id] = {"t": time.monotonic(), "rssi": rssi, "bat": bat, "cmd": pkt[2]}
+    bat_str = f"{bat}%" if bat != 255 else "N/A"
+    log(f"[ACK RX] Device {dev_id} RSSI={rssi}dBm bat={bat_str}")
+
+
 # =============================================================================
 # DMX CHANGE DETECTION
 # =============================================================================
@@ -608,7 +685,8 @@ def check_device_changes():
 
         if new_state != prev_device_state.get(device_id):
             prev_device_state[device_id] = new_state
-            packet = build_packet(device_id, command_id, preset, intensity, r, g, b, speed)
+            packet = build_packet(device_id, command_id, preset, intensity, r, g, b, speed,
+                                  config_flags=CONFIG_ACK_REQUESTED if ack_mode else 0)
             schedule_sends(packet)
             log(f"[sACN] Device {device_id} -> Preset={preset} Int={intensity} "
                 f"RGB=({r},{g},{b}) Spd={speed} CmdID={command_id}")
@@ -659,6 +737,26 @@ while True:
                     check_device_changes()
         except OSError:
             pass   # No packet available in non-blocking mode
+
+    # --- Poll for incoming ACK packets ---
+    if ack_mode and rfm9x is not None:
+        ack_pkt = rfm9x.receive(timeout=0.0)
+        if ack_pkt:
+            _process_ack(ack_pkt)
+    if ack_udp is not None:
+        try:
+            nbytes, _ = ack_udp.recvfrom_into(_ack_buf)
+            if ack_mode and nbytes >= ACK_PACKET_SIZE:
+                _process_ack(_ack_buf)
+        except OSError:
+            pass
+
+    # --- Periodic ping (when ack_mode ON) ---
+    if ack_mode and (now - _last_ping) >= PING_INTERVAL:
+        ping_pkt = build_ping_packet()
+        schedule_sends(ping_pkt)
+        _last_ping = now
+        log(f"[PING] broadcast seq={ping_pkt[2]}")
 
     # --- Serve web UI requests ---
     try:

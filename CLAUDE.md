@@ -31,14 +31,16 @@ There is no build system. Development workflow:
 ```
 Eos console → sACN UDP → Gateway (WIZ5500 Ethernet)
                                ↓ parse DMX channels
-                         Build 9-byte LoRa packet
+                         Build 12-byte LoRa packet
                                ↓ transmit 3× (50ms apart)
                          Endpoint (RFM95W LoRa RX)
                                ↓ verify XOR checksum, dedup
                          Apply effect + run effect loop at ~100fps
+                               ↓ (if ACK requested) send 7-byte ACK after stagger delay
+                         Gateway receives ACK → web UI status dots
 ```
 
-### 9-Byte Packet Protocol
+### 12-Byte Command Packet Protocol
 
 | Byte | Field | Notes |
 |------|-------|-------|
@@ -48,13 +50,29 @@ Eos console → sACN UDP → Gateway (WIZ5500 Ethernet)
 | 3 | Intensity | 0–255 |
 | 4–6 | R, G, B | Color |
 | 7 | Speed | 0=slow, 255=fast |
-| 8 | Checksum | XOR of bytes 0–7 |
+| 8 | Config flags | Bit 0 = `CONFIG_ACK_REQUESTED` (0x01) |
+| 9–10 | Reserved | Send 0x00 |
+| 11 | Checksum | XOR of bytes 0–10 |
+
+### 7-Byte ACK Packet Protocol (endpoint → gateway)
+
+| Byte | Field | Notes |
+|------|-------|-------|
+| 0 | 0xAC | Marker byte |
+| 1 | Device ID | Sender's device ID (1–5) |
+| 2 | Command ID | Command being ACKed |
+| 3 | RSSI encoded | `(rssi + 200) & 0xFF`; decode: `byte - 200` |
+| 4 | Battery % | 0–100, or 255 = not available |
+| 5 | Reserved | 0x00 |
+| 6 | Checksum | XOR of bytes 0–5 |
+
+ACK stagger: endpoint sends at `150ms + DEVICE_ID × 80ms` after receiving (avoids LoRa collision). Gateway listens on UDP port 5570 for WiFi ACKs.
 
 ### Gateway (`gateway/code.py`)
 
 Key functions:
 - `parse_sacn(data)` — parses raw E1.31 UDP payload
-- `build_packet(...)` — constructs the 9-byte LoRa command
+- `build_packet(...)` — constructs the 12-byte LoRa command
 - `dmx_to_preset(raw_value)` — maps DMX 0–255 to preset index 0–25
 - `schedule_sends(packet)` — queues 3 redundant transmits at 50ms spacing
 - `check_device_changes()` — detects DMX changes and triggers scheduling
