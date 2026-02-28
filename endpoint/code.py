@@ -1438,7 +1438,7 @@ def _schedule_ack(cmd_id):
     """Schedule an ACK packet to be sent after the stagger delay."""
     global ack_pending
     rssi_raw = rfm9x.last_rssi if rfm9x is not None else 0
-    rssi_enc = (rssi_raw + 200) & 0xFF
+    rssi_enc = (int(rssi_raw) + 200) & 0xFF
     bat = read_battery_pct()
     pkt = bytearray(ACK_PACKET_SIZE)
     pkt[0] = ACK_MARKER
