@@ -194,10 +194,10 @@ _status_pixel  = None
 _status_off_at = 0.0
 
 # Flash colors for each event type (pre-scaled values; status_flash applies brightness)
-_SL_RADIO_OFF  = (200,   0,   0)   # Red     — radio LDO enabling
-_SL_RADIO_ON   = (  0, 200, 100)   # Green   — radio LDO enabled
-_SL_BOOST_OFF  = (  0,   0, 200)   # Blue    — boost enabling
-_SL_BOOST_ON   = (150,   0, 200)   # Purple  — boost enabled
+_SL_RADIO_OFF  = (100,   0,   0)   # Red     — radio LDO enabling
+_SL_RADIO_ON   = (  0, 100, 100)   # Green   — radio LDO enabled
+_SL_BOOST_OFF  = (  0,   0, 100)   # Blue    — boost enabling
+_SL_BOOST_ON   = (750,   0, 100)   # Purple  — boost enabled
 
 _SL_WIFI_OK  = (0,  80,  0)   # Green   — WiFi connected
 _SL_LORA_RX  = (0,   0, 80)   # Blue    — LoRa command received
@@ -297,7 +297,7 @@ if _radio_en_pin_name:
         _radio_en = digitalio.DigitalInOut(getattr(board, _radio_en_pin_name))
         _radio_en.direction = digitalio.Direction.OUTPUT
         _radio_en.value = True
-        time.sleep(0.25)  # LDO startup
+        time.sleep(0.5)  # LDO startup
         print(f"Radio EN ({_radio_en_pin_name}) HIGH")
         status_flash(_SL_RADIO_ON, 0.5)
     except Exception as e:
