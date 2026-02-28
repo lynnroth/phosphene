@@ -148,6 +148,15 @@ SACN_UNIVERSE   = int(os.getenv("SACN_UNIVERSE",   "1"))  # Must match Eos outpu
 ARTNET_PORT     = 6454   # Standard ArtNet port, do not change
 ARTNET_UNIVERSE = int(os.getenv("ARTNET_UNIVERSE", "1"))  # Must match Eos output universe
 
+# --- Peripheral Enable Pin ---
+# RADIO_EN_PIN: if set, the ESP32 drives this GPIO HIGH before LoRa SPI init,
+# enabling the RFM95W's onboard LDO in a controlled sequence.
+# REQUIRED on hardware: 10kΩ pull-down to GND on the EN pad so it stays LOW
+# while the ESP32 GPIO is floating at cold boot.
+# Note: WIZ5500 has no enable pin — it is always on when powered.
+# Example in settings.toml:  RADIO_EN_PIN = "A2"
+_radio_en_pin_name = os.getenv("RADIO_EN_PIN")
+
 # --- LoRa ---
 LORA_FREQ      = 915.0  # MHz - must match all endpoints
 LORA_SF        = 7
@@ -267,6 +276,19 @@ except Exception as e:
     eth = None
     log(f"WARNING: Ethernet not available: {e}")
     log("sACN/ArtNet disabled — web UI still active")
+
+# --- RFM95W radio enable (LDO EN pad) ---
+_radio_en = None
+if _radio_en_pin_name:
+    try:
+        _radio_en = digitalio.DigitalInOut(getattr(board, _radio_en_pin_name))
+        _radio_en.direction = digitalio.Direction.OUTPUT
+        _radio_en.value = True
+        time.sleep(0.05)  # LDO startup
+        log(f"Radio EN ({_radio_en_pin_name}) HIGH")
+    except Exception as e:
+        log(f"WARNING: RADIO_EN_PIN '{_radio_en_pin_name}' failed: {e}")
+        _radio_en = None
 
 # -------------------------------------------------------------------------
 # Second SPI — RFM95W Breakout (#3072)

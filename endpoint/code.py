@@ -99,13 +99,21 @@ WIFI_SIM_PORT    = 5569   # Must match WIFI_SIM_PORT in gateway/code.py
 STATUS_LED_ENABLED    = os.getenv("STATUS_LED_ENABLED",    "1") != "0"
 STATUS_LED_BRIGHTNESS = int(os.getenv("STATUS_LED_BRIGHTNESS", "30"))  # 0-100 percent
 
-# --- Peripheral Enable Pin ---
-# If set, the ESP32 drives this GPIO HIGH after the startup delay so peripheral
-# regulators (RFM95W LDO, bq25185 boost) start up in a controlled sequence.
-# REQUIRED on hardware: 10kΩ pull-down to GND on each EN pin, so the pin is LOW
+# --- Peripheral Enable Pins ---
+# If set, the ESP32 drives these GPIOs HIGH in sequence after the startup delay,
+# enabling each peripheral's regulator in order.  Both are optional — omit either
+# key in settings.toml to skip that step.
+# REQUIRED on hardware: 10kΩ pull-down to GND on each EN pin so it stays LOW
 # while the ESP32 GPIO is floating at cold boot.
-# Example in settings.toml:  PERIPH_EN_PIN = "A2"
-_periph_en_pin_name = os.getenv("PERIPH_EN_PIN")
+#
+# BOOST_EN_PIN  →  bq25185 BOOST_EN pad  (enables 5V rail that powers NeoPixels)
+# RADIO_EN_PIN  →  RFM95W LDO EN pad     (enables 3.3V rail for the radio)
+#
+# Examples in settings.toml:
+#   BOOST_EN_PIN = "A2"
+#   RADIO_EN_PIN = "A3"
+_boost_en_pin_name = os.getenv("BOOST_EN_PIN")
+_radio_en_pin_name = os.getenv("RADIO_EN_PIN")
 
 LORA_FREQ = 915.0       # MHz - must match gateway
 
@@ -180,19 +188,19 @@ PRESET_WAVE_PASTEL       = 27   # sine wave from soft white to color, never goes
 # HARDWARE INIT
 # =============================================================================
 
-# --- Peripheral enable pin ---
-# Drive HIGH now so the RFM95W LDO and bq25185 boost are powered before SPI init.
-_periph_en = None
-if _periph_en_pin_name:
+# --- bq25185 boost enable (5V → NeoPixel rail) ---
+# Enable before strip init so pixels have power when the NeoPixel object is created.
+_boost_en = None
+if _boost_en_pin_name:
     try:
-        _periph_en = digitalio.DigitalInOut(getattr(board, _periph_en_pin_name))
-        _periph_en.direction = digitalio.Direction.OUTPUT
-        _periph_en.value = True
-        time.sleep(0.1)   # Give peripheral regulators time to reach steady state
-        print(f"Peripheral EN ({_periph_en_pin_name}) HIGH")
+        _boost_en = digitalio.DigitalInOut(getattr(board, _boost_en_pin_name))
+        _boost_en.direction = digitalio.Direction.OUTPUT
+        _boost_en.value = True
+        time.sleep(0.05)  # bq25185 boost startup
+        print(f"Boost EN ({_boost_en_pin_name}) HIGH")
     except Exception as e:
-        print(f"WARNING: PERIPH_EN_PIN '{_periph_en_pin_name}' setup failed: {e}")
-        _periph_en = None
+        print(f"WARNING: BOOST_EN_PIN '{_boost_en_pin_name}' failed: {e}")
+        _boost_en = None
 
 # NeoPixels — using ESP32-S3 RMT peripheral for glitch-free output
 pixels = neopixel.NeoPixel(
@@ -266,6 +274,20 @@ def read_battery_pct():
         return max(0, min(100, int(_bat_monitor.cell_percent)))
     except Exception:
         return 255
+
+# --- RFM95W radio enable (LDO EN pad) ---
+# Enable after battery monitor; radio needs stable 3.3V before SPI init.
+_radio_en = None
+if _radio_en_pin_name:
+    try:
+        _radio_en = digitalio.DigitalInOut(getattr(board, _radio_en_pin_name))
+        _radio_en.direction = digitalio.Direction.OUTPUT
+        _radio_en.value = True
+        time.sleep(0.05)  # LDO startup
+        print(f"Radio EN ({_radio_en_pin_name}) HIGH")
+    except Exception as e:
+        print(f"WARNING: RADIO_EN_PIN '{_radio_en_pin_name}' failed: {e}")
+        _radio_en = None
 
 # LoRa Radio — RFM95W Breakout (#3072) on primary SPI bus
 # board.SCK=SCK, board.MOSI=MOSI, board.MISO=MISO, CS=D9, RST=D10, G0/IRQ=D11

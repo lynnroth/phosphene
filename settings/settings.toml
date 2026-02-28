@@ -11,7 +11,11 @@ CIRCUITPY_WEB_API_PORT = 80
 STATUS_LED_ENABLED = "1"
 STATUS_LED_BRIGHTNESS = "30"   # 0-100 percent
 
-# --- Peripheral enable pin ---
-# Uncomment and set to the GPIO pin connected to EN on the RFM95W / bq25185.
+# --- Peripheral enable pins (endpoint only) ---
+# Uncomment and set to control peripheral regulators from the ESP32 GPIO.
 # Requires a 10kΩ pull-down on each EN pin (holds LOW while GPIO is floating).
-# PERIPH_EN_PIN = "A2"
+# BOOST_EN_PIN = "A2"   # bq25185 BOOST_EN pad — enables 5V NeoPixel rail
+# RADIO_EN_PIN = "A3"   # RFM95W LDO EN pad   — enables 3.3V radio rail
+
+# --- Peripheral enable pin (gateway only) ---
+# RADIO_EN_PIN = "A2"   # RFM95W LDO EN pad   — enables 3.3V radio rail
