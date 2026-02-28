@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="900" height="500" viewBox="0 0 900 500">
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="540" viewBox="0 0 900 540">
 <style>
   text { font-family: ui-monospace, monospace; }
   .title    { font-size:15px; font-weight:bold; fill:#c8b89a; letter-spacing:.12em; }
@@ -14,7 +14,7 @@
 </style>
 
 <!-- Background -->
-<rect width="900" height="500" fill="#0d0d0d"/>
+<rect width="900" height="540" fill="#0d0d0d"/>
 
 <!-- Title -->
 <text x="450" y="28" class="title" text-anchor="middle">GATEWAY — BOARD CONNECTIONS</text>
@@ -89,9 +89,13 @@
 <circle cx="554" cy="383" r="3.5" fill="#ffee58"/>
 <text x="548" y="387" class="pin" text-anchor="end">A1</text>
 <text x="403" y="387" class="pin-dim" text-anchor="end">(IRQ)</text>
+<!-- A2 — optional RADIO_EN control -->
+<circle cx="554" cy="421" r="3.5" fill="#8bc34a"/>
+<text x="548" y="425" class="pin" text-anchor="end">A2</text>
+<text x="403" y="425" class="pin-dim" text-anchor="end">(RADIO_EN)</text>
 
 <!-- ═══════════════ RFM95W (2nd SPI) ═══════════════ -->
-<rect x="672" y="75" width="200" height="335" fill="#161616" stroke="#2a2a2a" stroke-width="1.5" rx="4"/>
+<rect x="672" y="75" width="200" height="360" fill="#161616" stroke="#2a2a2a" stroke-width="1.5" rx="4"/>
 <text x="772" y="68" class="brd" text-anchor="middle">RFM95W LoRa</text>
 <text x="772" y="91" class="pid" text-anchor="middle">#3072  ·  915 MHz  ·  Second SPI</text>
 <!-- Antenna note -->
@@ -116,6 +120,10 @@
 <text x="678" y="349" class="pin">RST</text>
 <circle cx="672" cy="383" r="3.5" fill="#ffee58"/>
 <text x="678" y="387" class="pin">G0 (DIO0)</text>
+<!-- RFM95W EN pad — LDO enable, optional GPIO control -->
+<circle cx="672" cy="421" r="3.5" fill="#8bc34a"/>
+<text x="678" y="425" class="pin">EN</text>
+<text x="678" y="435" class="note">(LDO — 10kΩ to GND)</text>
 
 <!-- ═══════════════ WIRES: WIZ5500 ↔ Feather ═══════════════ -->
 <text x="271" y="96" class="bus-lbl" text-anchor="middle">PRIMARY SPI</text>
@@ -136,6 +144,21 @@
 <line x1="554" y1="307" x2="672" y2="307" stroke="#ab47bc" stroke-width="1.5"/>
 <line x1="554" y1="345" x2="672" y2="345" stroke="#00bcd4" stroke-width="1.5"/>
 <line x1="554" y1="383" x2="672" y2="383" stroke="#ffee58" stroke-width="1.5"/>
+
+<!-- ═══════════════ OPTIONAL EN CONTROL WIRE ═══════════════ -->
+<!-- Requires 10kΩ pull-down to GND on RFM95W EN pad.            -->
+<!-- Without it, cold-boot inrush is handled by the 1s delay.    -->
+<!-- WIZ5500 has no enable pin — always on when powered.          -->
+<!-- A2 → RFM95W EN (enables radio LDO) -->
+<line x1="554" y1="421" x2="672" y2="421" stroke="#8bc34a" stroke-width="1.5" stroke-dasharray="4,2"/>
+<!-- pull-down symbol at junction (608,421) -->
+<line  x1="608" y1="421" x2="608" y2="429" stroke="#666" stroke-width="1"/>
+<rect   x="604" y="429" width="8" height="12" fill="none" stroke="#666" stroke-width="1"/>
+<text  x="618"  y="438"  class="note">10k</text>
+<line  x1="608" y1="441" x2="608" y2="449" stroke="#666" stroke-width="1"/>
+<line  x1="602" y1="449" x2="614" y2="449" stroke="#666" stroke-width="1"/>
+<line  x1="604" y1="452" x2="612" y2="452" stroke="#666" stroke-width="1"/>
+<line  x1="606" y1="455" x2="610" y2="455" stroke="#666" stroke-width="1"/>
 
 <!-- ═══════════════ LEGEND ═══════════════ -->
 <text x="28"  y="432" class="leg-hdr">POWER</text>
@@ -159,4 +182,8 @@
 <text x="372" y="449" class="leg-lbl">RST</text>
 <line x1="340" y1="462" x2="367" y2="462" stroke="#ffee58" stroke-width="1.5"/>
 <text x="372" y="466" class="leg-lbl">G0 / IRQ</text>
+
+<text x="28"  y="490" class="leg-hdr">OPTIONAL EN CTRL</text>
+<line x1="28"  y1="503" x2="55"  y2="503" stroke="#8bc34a" stroke-width="1.5" stroke-dasharray="4,2"/>
+<text x="60"  y="507" class="leg-lbl">A2=RADIO_EN · 10kΩ pull-down to GND on EN pad · WIZ5500 has no enable pin</text>
 </svg>

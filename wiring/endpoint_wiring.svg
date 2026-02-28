@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="900" height="580" viewBox="0 0 900 580">
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="620" viewBox="0 0 900 620">
 <style>
   text { font-family: ui-monospace, monospace; }
   .title   { font-size:15px; font-weight:bold; fill:#c8b89a; letter-spacing:.12em; }
@@ -15,7 +15,7 @@
 </style>
 
 <!-- Background -->
-<rect width="900" height="580" fill="#0d0d0d"/>
+<rect width="900" height="620" fill="#0d0d0d"/>
 
 <!-- Title -->
 <text x="450" y="28" class="title" text-anchor="middle">ENDPOINT — BOARD CONNECTIONS</text>
@@ -54,6 +54,10 @@
 <text x="120" y="445" class="pin" text-anchor="middle">GND</text>
 <text x="103" y="400" class="note" text-anchor="middle">regulated 5V</text>
 <text x="103" y="412" class="note" text-anchor="middle">for NeoPixels</text>
+<!-- bq25185 BOOST_EN pad — optional GPIO control -->
+<circle cx="178" cy="370" r="3.5" fill="#8bc34a"/>
+<text x="172" y="374" class="pin" text-anchor="end">BOOST_EN</text>
+<text x="172" y="384" class="note" text-anchor="end">(10kΩ to GND)</text>
 
 <!-- ═══════════════ NeoPixel Strip ═══════════════ -->
 <rect x="28" y="465" width="210" height="85" fill="#161616" stroke="#2a2a2a" stroke-width="1.5" rx="4"/>
@@ -97,6 +101,10 @@
 <!-- GND -->
 <circle cx="310" cy="200" r="3.5" fill="#777"/>
 <text x="316" y="204" class="pin">GND</text>
+<!-- A2 — optional BOOST_EN control -->
+<circle cx="310" cy="240" r="3.5" fill="#8bc34a"/>
+<text x="316" y="244" class="pin">A2</text>
+<text x="358" y="244" class="pin-dim">(BOOST_EN)</text>
 
 <!-- Feather RIGHT pins (x=518) -->
 <circle cx="518" cy="120" r="3.5" fill="#e05050"/>
@@ -118,9 +126,13 @@
 <circle cx="518" cy="386" r="3.5" fill="#ffee58"/>
 <text x="512" y="390" class="pin" text-anchor="end">D11</text>
 <text x="410" y="390" class="pin-dim" text-anchor="end">(G0/IRQ)</text>
+<!-- A3 — optional RADIO_EN control -->
+<circle cx="518" cy="414" r="3.5" fill="#8bc34a"/>
+<text x="512" y="418" class="pin" text-anchor="end">A3</text>
+<text x="410" y="418" class="pin-dim" text-anchor="end">(RADIO_EN)</text>
 
 <!-- ═══════════════ RFM95W ═══════════════ -->
-<rect x="672" y="75" width="200" height="335" fill="#161616" stroke="#2a2a2a" stroke-width="1.5" rx="4"/>
+<rect x="672" y="75" width="200" height="370" fill="#161616" stroke="#2a2a2a" stroke-width="1.5" rx="4"/>
 <text x="772" y="68" class="brd" text-anchor="middle">RFM95W LoRa</text>
 <text x="772" y="91" class="pid" text-anchor="middle">#3072  ·  915 MHz  ·  Primary SPI</text>
 <!-- Antenna -->
@@ -145,6 +157,10 @@
 <text x="678" y="352" class="pin">RST</text>
 <circle cx="672" cy="386" r="3.5" fill="#ffee58"/>
 <text x="678" y="390" class="pin">G0 (DIO0)</text>
+<!-- RFM95W EN pad — LDO enable, optional GPIO control -->
+<circle cx="672" cy="414" r="3.5" fill="#8bc34a"/>
+<text x="678" y="418" class="pin">EN</text>
+<text x="678" y="428" class="note">(LDO — 10kΩ to GND)</text>
 
 <!-- ═══════════════ WIRES ═══════════════ -->
 
@@ -180,6 +196,30 @@
 <text x="200" y="175" class="note" text-anchor="middle">same LiPo cell</text>
 <text x="200" y="186" class="note" text-anchor="middle">powers both boards</text>
 
+<!-- ═══════════════ OPTIONAL EN CONTROL WIRES ═══════════════ -->
+<!-- Requires 10kΩ pull-down to GND on each EN pad (see pad labels).          -->
+<!-- Without the pull-down, cold-boot inrush is handled by the 1s delay.      -->
+<!-- A2 → bq25185 BOOST_EN (enables 5V NeoPixel rail) -->
+<polyline points="310,240 230,240 230,370 178,370" fill="none" stroke="#8bc34a" stroke-width="1.5" stroke-dasharray="4,2"/>
+<!-- pull-down symbol at junction (202,370) -->
+<line  x1="202" y1="370" x2="202" y2="378" stroke="#666" stroke-width="1"/>
+<rect   x="198" y="378" width="8" height="12" fill="none" stroke="#666" stroke-width="1"/>
+<text  x="212"  y="387"  class="note">10k</text>
+<line  x1="202" y1="390" x2="202" y2="398" stroke="#666" stroke-width="1"/>
+<line  x1="196" y1="398" x2="208" y2="398" stroke="#666" stroke-width="1"/>
+<line  x1="198" y1="401" x2="206" y2="401" stroke="#666" stroke-width="1"/>
+<line  x1="200" y1="404" x2="204" y2="404" stroke="#666" stroke-width="1"/>
+<!-- A3 → RFM95W EN (enables radio LDO) -->
+<polyline points="518,414 580,414 672,414" fill="none" stroke="#8bc34a" stroke-width="1.5" stroke-dasharray="4,2"/>
+<!-- pull-down symbol at junction (580,414) -->
+<line  x1="580" y1="414" x2="580" y2="422" stroke="#666" stroke-width="1"/>
+<rect   x="576" y="422" width="8" height="12" fill="none" stroke="#666" stroke-width="1"/>
+<text  x="590"  y="431"  class="note">10k</text>
+<line  x1="580" y1="434" x2="580" y2="442" stroke="#666" stroke-width="1"/>
+<line  x1="574" y1="442" x2="586" y2="442" stroke="#666" stroke-width="1"/>
+<line  x1="576" y1="445" x2="584" y2="445" stroke="#666" stroke-width="1"/>
+<line  x1="578" y1="448" x2="582" y2="448" stroke="#666" stroke-width="1"/>
+
 <!-- ═══════════════ LEGEND ═══════════════ -->
 <text x="540" y="460" class="leg-hdr">POWER</text>
 <line x1="540" y1="472" x2="567" y2="472" stroke="#e05050"  stroke-width="1.5"/>
@@ -204,4 +244,8 @@
 <text x="672" y="524" class="leg-lbl">G0 / IRQ</text>
 <line x1="640" y1="536" x2="667" y2="536" stroke="#e91e8c"  stroke-width="1.5" stroke-dasharray="4,2"/>
 <text x="672" y="540" class="leg-lbl">NeoPixel DATA</text>
+
+<text x="540" y="560" class="leg-hdr">OPTIONAL EN CTRL</text>
+<line x1="540" y1="572" x2="567" y2="572" stroke="#8bc34a" stroke-width="1.5" stroke-dasharray="4,2"/>
+<text x="572" y="576" class="leg-lbl">A2=BOOST_EN · A3=RADIO_EN · 10kΩ pull-down to GND on each EN pad</text>
 </svg>
