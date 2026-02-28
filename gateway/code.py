@@ -61,7 +61,7 @@ import time
 
 # Power-on stabilisation delay — lets the 3.3V LDO reach steady state before
 # Ethernet, LoRa, and WiFi AP init. Not needed on soft restart (Ctrl-D).
-time.sleep(0.5)
+time.sleep(1.0)
 
 import struct
 import board

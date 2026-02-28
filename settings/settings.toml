@@ -1,0 +1,17 @@
+WIFI_AP_SSID = "phosphene"
+WIFI_AP_PASSWORD = "gobo1234"
+
+CIRCUITPY_WIFI_SSID = "penguin"
+CIRCUITPY_WIFI_PASSWORD = "penguinpass"
+CIRCUITPY_WEB_API_PASSWORD = "101206"
+CIRCUITPY_WEB_API_PORT = 80
+
+# --- Endpoint status LED ---
+# Set to "0" to disable the onboard NeoPixel event flashes after testing.
+STATUS_LED_ENABLED = "1"
+STATUS_LED_BRIGHTNESS = "30"   # 0-100 percent
+
+# --- Peripheral enable pin ---
+# Uncomment and set to the GPIO pin connected to EN on the RFM95W / bq25185.
+# Requires a 10kΩ pull-down on each EN pin (holds LOW while GPIO is floating).
+# PERIPH_EN_PIN = "A2"

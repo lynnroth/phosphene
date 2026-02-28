@@ -52,7 +52,7 @@ import time
 # Power-on stabilisation delay — gives the 3.3V LDO and bq25185 boost
 # time to reach steady state before heavy hardware init (LoRa SPI + WiFi).
 # Soft restart (Ctrl-D) skips the inrush so this only matters on cold boot.
-time.sleep(0.5)
+time.sleep(1.0)
 
 import random
 import os
@@ -79,10 +79,6 @@ if _dev_id is None:
           "Set DEVICE_ID = 1 (or 2-5) in CIRCUITPY/settings.toml.")
 DEVICE_ID = int(_dev_id) if _dev_id is not None else 1
 
-# Stagger startup by device ID so endpoints don't all hit WiFi init simultaneously.
-# Device 1=0.5s, 2=1.0s, 3=1.5s, 4=2.0s, 5=2.5s  (on top of the 0.5s above)
-time.sleep(DEVICE_ID * 0.5)
-
 # NUM_PIXELS: number of NeoPixels on this device's strip.
 NUM_PIXELS = int(os.getenv("NUM_PIXELS", "40"))
 
@@ -96,6 +92,20 @@ NEOPIXEL_PIN = getattr(board, os.getenv("NEOPIXEL_PIN", "D5"))
 WIFI_SIM_ENABLED = os.getenv("WIFI_SIM_ENABLED", "1") != "0"
 WIFI_SIM_NETWORK = os.getenv("WIFI_SIM_NETWORK", "ap")
 WIFI_SIM_PORT    = 5569   # Must match WIFI_SIM_PORT in gateway/code.py
+
+# --- Status LED (onboard NeoPixel at board.NEOPIXEL) ---
+# Blinks to indicate system events: WiFi connect, LoRa RX, WiFi RX, ping, ACK.
+# Set STATUS_LED_ENABLED = "0" in settings.toml to disable after testing.
+STATUS_LED_ENABLED    = os.getenv("STATUS_LED_ENABLED",    "1") != "0"
+STATUS_LED_BRIGHTNESS = int(os.getenv("STATUS_LED_BRIGHTNESS", "30"))  # 0-100 percent
+
+# --- Peripheral Enable Pin ---
+# If set, the ESP32 drives this GPIO HIGH after the startup delay so peripheral
+# regulators (RFM95W LDO, bq25185 boost) start up in a controlled sequence.
+# REQUIRED on hardware: 10kΩ pull-down to GND on each EN pin, so the pin is LOW
+# while the ESP32 GPIO is floating at cold boot.
+# Example in settings.toml:  PERIPH_EN_PIN = "A2"
+_periph_en_pin_name = os.getenv("PERIPH_EN_PIN")
 
 LORA_FREQ = 915.0       # MHz - must match gateway
 
@@ -170,6 +180,20 @@ PRESET_WAVE_PASTEL       = 27   # sine wave from soft white to color, never goes
 # HARDWARE INIT
 # =============================================================================
 
+# --- Peripheral enable pin ---
+# Drive HIGH now so the RFM95W LDO and bq25185 boost are powered before SPI init.
+_periph_en = None
+if _periph_en_pin_name:
+    try:
+        _periph_en = digitalio.DigitalInOut(getattr(board, _periph_en_pin_name))
+        _periph_en.direction = digitalio.Direction.OUTPUT
+        _periph_en.value = True
+        time.sleep(0.1)   # Give peripheral regulators time to reach steady state
+        print(f"Peripheral EN ({_periph_en_pin_name}) HIGH")
+    except Exception as e:
+        print(f"WARNING: PERIPH_EN_PIN '{_periph_en_pin_name}' setup failed: {e}")
+        _periph_en = None
+
 # NeoPixels — using ESP32-S3 RMT peripheral for glitch-free output
 pixels = neopixel.NeoPixel(
     NEOPIXEL_PIN,
@@ -178,6 +202,36 @@ pixels = neopixel.NeoPixel(
     auto_write=False,    # Manual .show() for smooth animation control
     pixel_order=neopixel.GRB
 )
+
+# Status NeoPixel — onboard single pixel (board.NEOPIXEL), separate from the strip.
+# Used for non-blocking event flashes during testing; disable via settings.toml.
+_status_pixel  = None
+_status_off_at = 0.0
+
+# Flash colors for each event type (pre-scaled values; status_flash applies brightness)
+_SL_WIFI_OK  = (0,  80,  0)   # Green   — WiFi connected
+_SL_LORA_RX  = (0,   0, 80)   # Blue    — LoRa command received
+_SL_WIFI_RX  = (0,  60, 60)   # Cyan    — WiFi sim command received
+_SL_PING     = (60, 60,  0)   # Yellow  — Ping received
+_SL_ACK_TX   = (60,  0, 60)   # Magenta — ACK transmitted
+
+if STATUS_LED_ENABLED:
+    try:
+        _status_pixel = neopixel.NeoPixel(board.NEOPIXEL, 1, brightness=1.0, auto_write=True)
+        _status_pixel[0] = (0, 0, 0)
+    except Exception as e:
+        print(f"WARNING: Status LED unavailable: {e}")
+
+
+def status_flash(color, duration=0.15):
+    """Flash the onboard status NeoPixel briefly (non-blocking; cleared by main loop)."""
+    global _status_off_at
+    if _status_pixel is None:
+        return
+    scale = STATUS_LED_BRIGHTNESS / 100.0
+    _status_pixel[0] = (int(color[0] * scale), int(color[1] * scale), int(color[2] * scale))
+    _status_off_at = time.monotonic() + duration
+
 
 # Battery monitor — try MAX17048 first, fall back to LC709203F
 _bat_monitor = None
@@ -255,6 +309,7 @@ if WIFI_SIM_ENABLED:
             print(f"Connecting to {_sim_label}...")
             wifi.radio.connect(_sim_ssid, _sim_pass)
             print(f"WiFi connected | IP {wifi.radio.ipv4_address}")
+            status_flash(_SL_WIFI_OK, 0.5)
             _gw = wifi.radio.ipv4_gateway
             _ack_gateway_ip = str(_gw) if _gw else None
             _pool = socketpool.SocketPool(wifi.radio)
@@ -1374,6 +1429,7 @@ def handle_ping(packet):
     last_ping_seq = ping_seq
     last_ping_time = now
     print(f"[PING RX] seq={ping_seq}")
+    status_flash(_SL_PING)
     _schedule_ack(ping_seq)
     return True
 
@@ -1412,6 +1468,11 @@ _loop_tick = 0
 print("Entering main loop...")
 
 while True:
+    # --- Status LED off timer ---
+    if _status_off_at and _status_pixel is not None and time.monotonic() >= _status_off_at:
+        _status_pixel[0] = (0, 0, 0)
+        _status_off_at = 0.0
+
     # --- Check for incoming LoRa packet (non-blocking) ---
     if rfm9x is not None:
         packet = rfm9x.receive(timeout=0.0)
@@ -1423,6 +1484,7 @@ while True:
                 print(f"[LORA RX] RSSI={rfm9x.last_rssi}dBm "
                       f"dev={packet[0]} cmd={packet[1]} preset={packet[2]} "
                       f"int={packet[3]} rgb=({packet[4]},{packet[5]},{packet[6]})")
+                status_flash(_SL_LORA_RX)
                 apply_packet(packet)
 
     # --- Check for incoming WiFi sim packet (non-blocking) ---
@@ -1436,6 +1498,7 @@ while True:
                 print(f"[SIM RX]  from={addr[0]} "
                       f"dev={_sim_buf[0]} cmd={_sim_buf[1]} preset={_sim_buf[2]} "
                       f"int={_sim_buf[3]} rgb=({_sim_buf[4]},{_sim_buf[5]},{_sim_buf[6]})")
+                status_flash(_SL_WIFI_RX)
                 apply_packet(_sim_buf)
         except OSError:
             pass  # No packet available
@@ -1454,6 +1517,7 @@ while True:
             bat_val = ack_pkt[4]
             bat_str = f"{bat_val}%" if bat_val != 255 else "N/A"
             print(f"[ACK TX] dev={DEVICE_ID} cmd={ack_pkt[2]} rssi={ack_pkt[3]-200}dBm bat={bat_str}")
+            status_flash(_SL_ACK_TX)
             ack_pending = None
 
     # --- Run current effect ---
