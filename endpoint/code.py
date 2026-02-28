@@ -48,6 +48,12 @@
 # =============================================================================
 
 import time
+
+# Power-on stabilisation delay — gives the 3.3V LDO and bq25185 boost
+# time to reach steady state before heavy hardware init (LoRa SPI + WiFi).
+# Soft restart (Ctrl-D) skips the inrush so this only matters on cold boot.
+time.sleep(0.5)
+
 import random
 import os
 import board
@@ -72,6 +78,10 @@ if _dev_id is None:
     print("ERROR: DEVICE_ID not set in settings.toml — defaulting to 1. "
           "Set DEVICE_ID = 1 (or 2-5) in CIRCUITPY/settings.toml.")
 DEVICE_ID = int(_dev_id) if _dev_id is not None else 1
+
+# Stagger startup by device ID so endpoints don't all hit WiFi init simultaneously.
+# Device 1=0.5s, 2=1.0s, 3=1.5s, 4=2.0s, 5=2.5s  (on top of the 0.5s above)
+time.sleep(DEVICE_ID * 0.5)
 
 # NUM_PIXELS: number of NeoPixels on this device's strip.
 NUM_PIXELS = int(os.getenv("NUM_PIXELS", "40"))
@@ -209,10 +219,10 @@ spi = busio.SPI(clock=board.SCK, MOSI=board.MOSI, MISO=board.MISO)
 cs  = digitalio.DigitalInOut(board.D9)
 rst = digitalio.DigitalInOut(board.D10)
 
-print(f"Theater LoRa Endpoint {DEVICE_ID} booting...")
+print(f"Phosphene Endpoint {DEVICE_ID} booting...")
 print(f"Board: ESP32-S3 Feather (#5477) | {NUM_PIXELS} pixels")
-
 print("Initialising RFM95W LoRa radio...")
+
 try:
     rfm9x = adafruit_rfm9x.RFM9x(spi, cs, rst, LORA_FREQ)
     rfm9x.spreading_factor  = LORA_SF
