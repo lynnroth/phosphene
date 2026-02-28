@@ -188,35 +188,17 @@ PRESET_WAVE_PASTEL       = 27   # sine wave from soft white to color, never goes
 # HARDWARE INIT
 # =============================================================================
 
-# --- bq25185 boost enable (5V → NeoPixel rail) ---
-# Enable before strip init so pixels have power when the NeoPixel object is created.
-_boost_en = None
-if _boost_en_pin_name:
-    try:
-        _boost_en = digitalio.DigitalInOut(getattr(board, _boost_en_pin_name))
-        _boost_en.direction = digitalio.Direction.OUTPUT
-        _boost_en.value = True
-        time.sleep(0.05)  # bq25185 boost startup
-        print(f"Boost EN ({_boost_en_pin_name}) HIGH")
-    except Exception as e:
-        print(f"WARNING: BOOST_EN_PIN '{_boost_en_pin_name}' failed: {e}")
-        _boost_en = None
-
-# NeoPixels — using ESP32-S3 RMT peripheral for glitch-free output
-pixels = neopixel.NeoPixel(
-    NEOPIXEL_PIN,
-    NUM_PIXELS,
-    brightness=1.0,      # We handle brightness in software via intensity
-    auto_write=False,    # Manual .show() for smooth animation control
-    pixel_order=neopixel.GRB
-)
-
 # Status NeoPixel — onboard single pixel (board.NEOPIXEL), separate from the strip.
 # Used for non-blocking event flashes during testing; disable via settings.toml.
 _status_pixel  = None
 _status_off_at = 0.0
 
 # Flash colors for each event type (pre-scaled values; status_flash applies brightness)
+_SL_RADIO_OFF  = (200,   0,   0)   # Red     — radio LDO enabling
+_SL_RADIO_ON   = (  0, 200, 100)   # Green   — radio LDO enabled
+_SL_BOOST_OFF  = (  0,   0, 200)   # Blue    — boost enabling
+_SL_BOOST_ON   = (150,   0, 200)   # Purple  — boost enabled
+
 _SL_WIFI_OK  = (0,  80,  0)   # Green   — WiFi connected
 _SL_LORA_RX  = (0,   0, 80)   # Blue    — LoRa command received
 _SL_WIFI_RX  = (0,  60, 60)   # Cyan    — WiFi sim command received
@@ -237,8 +219,38 @@ def status_flash(color, duration=0.15):
     if _status_pixel is None:
         return
     scale = STATUS_LED_BRIGHTNESS / 100.0
-    _status_pixel[0] = (int(color[0] * scale), int(color[1] * scale), int(color[2] * scale))
+    _status_pixel[0] = (min(255, int(color[0] * scale)),
+                        min(255, int(color[1] * scale)),
+                        min(255, int(color[2] * scale)))
     _status_off_at = time.monotonic() + duration
+
+
+# --- bq25185 boost enable (5V → NeoPixel rail) ---
+# Enable before strip init so pixels have power when the NeoPixel object is created.
+_boost_en = None
+if _boost_en_pin_name:
+    try:
+        print(f"Boost EN ({_boost_en_pin_name}) LOW")
+        status_flash(_SL_BOOST_OFF, 0.5)
+        _boost_en = digitalio.DigitalInOut(getattr(board, _boost_en_pin_name))
+        _boost_en.direction = digitalio.Direction.OUTPUT
+        _boost_en.value = True
+        time.sleep(0.25)  # bq25185 boost startup
+        print(f"Boost EN ({_boost_en_pin_name}) HIGH")
+        status_flash(_SL_BOOST_ON, 0.5)
+    except Exception as e:
+        print(f"WARNING: BOOST_EN_PIN '{_boost_en_pin_name}' failed: {e}")
+        _boost_en = None
+
+# NeoPixels — using ESP32-S3 RMT peripheral for glitch-free output
+pixels = neopixel.NeoPixel(
+    NEOPIXEL_PIN,
+    NUM_PIXELS,
+    brightness=1.0,      # We handle brightness in software via intensity
+    auto_write=False,    # Manual .show() for smooth animation control
+    pixel_order=neopixel.GRB
+)
+
 
 
 # Battery monitor — try MAX17048 first, fall back to LC709203F
@@ -280,11 +292,14 @@ def read_battery_pct():
 _radio_en = None
 if _radio_en_pin_name:
     try:
+        print(f"Radio EN ({_radio_en_pin_name}) LOW")
+        status_flash(_SL_RADIO_OFF, 0.5)
         _radio_en = digitalio.DigitalInOut(getattr(board, _radio_en_pin_name))
         _radio_en.direction = digitalio.Direction.OUTPUT
         _radio_en.value = True
-        time.sleep(0.05)  # LDO startup
+        time.sleep(0.25)  # LDO startup
         print(f"Radio EN ({_radio_en_pin_name}) HIGH")
+        status_flash(_SL_RADIO_ON, 0.5)
     except Exception as e:
         print(f"WARNING: RADIO_EN_PIN '{_radio_en_pin_name}' failed: {e}")
         _radio_en = None
