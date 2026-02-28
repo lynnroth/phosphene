@@ -11,6 +11,9 @@ Phosphene receives sACN Universe 1 from Eos. Each wireless endpoint occupies 7 c
 | Broadcast (all endpoints) | 50 | 50–56 |
 | Endpoint 1 | 1 | 1–7 |
 | Endpoint 2 | 8 | 8–14 |
+| Endpoint 3 | 15 | 15–21 |
+| Endpoint 4 | 22 | 22–28 |
+| Endpoint 5 | 29 | 29–35 |
 
 To change the patch, edit `DEVICE_PATCH` in `gateway/code.py`.
 
@@ -18,7 +21,7 @@ To change the patch, edit `DEVICE_PATCH` in `gateway/code.py`.
 
 | Offset | Label | Range | Notes |
 |---|---|---|---|
-| +0 | Preset | 0–255 | Divided into 10-DMX bands, see table |
+| +0 | Preset | 0–255 | Divided into 5-DMX bands, see table |
 | +1 | Intensity | 0–255 | Master brightness |
 | +2 | Red | 0–255 | |
 | +3 | Green | 0–255 | |
@@ -28,36 +31,38 @@ To change the patch, edit `DEVICE_PATCH` in `gateway/code.py`.
 
 ## Preset Bands
 
-Set the Preset channel to any value in the range to select that effect.
+Set the Preset channel to any value in the 5-DMX range to select that effect.
 
 | Range | Effect | Good for |
 |---|---|---|
-| 0–9 | Blackout | Cue out |
-| 10–19 | Sparkle | Stars, magic |
-| 20–29 | Chase | Energy, movement |
-| 30–39 | Fade / Breathe | Tension, meditation |
-| 40–49 | Solid | Practical lamp, area fill |
-| 50–59 | Twinkle on Solid | Ambient shimmer |
-| 60–69 | Strobe | Seizure warning — use carefully |
-| 70–79 | Meteor | Shooting star, energy bolt |
-| 80–89 | Fire | Torch, candelabra, fireplace |
-| 90–99 | Rainbow | Party, pride, carnival |
-| 100–109 | Lightning | Storm, tension, danger |
-| 110–119 | Marquee | Old Hollywood, opening number |
-| 120–129 | Candle | Intimate, romantic, period |
-| 130–139 | Color Wipe | Slow reveal, transformation |
-| 140–149 | Heartbeat | Tension, life/death moments |
-| 150–159 | Alarm | Emergency, siren |
-| 160–169 | Comet | One-shot streak |
-| 170–179 | Ripple | Water, pond, calm |
-| 180–189 | Scanner (Cylon) | Robotic, surveillance |
-| 190–199 | Bubbles | Underwater, dreamy |
-| 200–209 | Campfire | Warmer/softer fire |
-| 210–219 | Confetti | Celebration, chaos |
-| 220–229 | Wave | Ocean, undulation |
-| 230–239 | Flicker | Dying bulb, fluorescent |
-| 240–249 | Theater Chase | Classic marquee |
-| 250–255 | Rainbow Chase | Rainbow marquee |
+| 0–4 | Blackout | Cue out |
+| 5–9 | Sparkle | Stars, magic |
+| 10–14 | Chase | Energy, movement |
+| 15–19 | Fade / Breathe | Tension, meditation |
+| 20–24 | Solid | Practical lamp, area fill |
+| 25–29 | Twinkle on Solid | Ambient shimmer |
+| 30–34 | Strobe | Seizure warning — use carefully |
+| 35–39 | Meteor | Shooting star, energy bolt |
+| 40–44 | Fire | Torch, candelabra, fireplace |
+| 45–49 | Rainbow | Party, pride, carnival |
+| 50–54 | Lightning | Storm, tension, danger |
+| 55–59 | Marquee | Old Hollywood, opening number |
+| 60–64 | Candle | Intimate, romantic, period |
+| 65–69 | Color Wipe | Slow reveal, transformation |
+| 70–74 | Heartbeat | Tension, life/death moments |
+| 75–79 | Alarm | Emergency, siren |
+| 80–84 | Comet | One-shot streak |
+| 85–89 | Ripple | Water, pond, calm |
+| 90–94 | Scanner (Cylon) | Robotic, surveillance |
+| 95–99 | Bubbles | Underwater, dreamy |
+| 100–104 | Campfire | Warmer/softer fire |
+| 105–109 | Confetti | Celebration, chaos |
+| 110–114 | Wave | Ocean, undulation |
+| 115–119 | Flicker | Dying bulb, fluorescent |
+| 120–124 | Theater Chase | Classic marquee |
+| 125–129 | Rainbow Chase | Rainbow marquee |
+| 130–134 | Aurora | Northern lights, slow drift |
+| 135–139 | Wave Pastel | Soft rainbow sine pulse |
 
 ## Eos Setup Steps
 
