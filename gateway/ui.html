@@ -193,7 +193,7 @@ function drawWheel(h,s){
   hg.addColorStop(1,"#f00");
   ctx.fillStyle=hg;ctx.fillRect(0,0,css,css);
   const sg=ctx.createRadialGradient(cx,cy,0,cx,cy,r);
-  sg.addColorStop(0,"rgba(255,255,255,1)");sg.addColorStop(1,"rgba(255,255,255,0)");
+  sg.addColorStop(0,"rgba(255,255,255,1)");sg.addColorStop(0.3,"rgba(255,255,255,1)");sg.addColorStop(1,"rgba(255,255,255,0)");
   ctx.fillStyle=sg;ctx.fillRect(0,0,css,css);
   ctx.restore();
 
