@@ -278,16 +278,12 @@ status_pixel[0] = (0, 15, 30)   # cyan dim — Ethernet chip initializing
 log("Initialising WIZ5500 Ethernet...")
 _eth_configured = False   # True once IP has been assigned and UDP socket is open
 try:
-    if USE_DHCP:
-        # Simple single-step init with DHCP — identical to Adafruit's example.
-        # RST pin is held HIGH above; not passed here so no hardware reset cycle.
-        eth = WIZNET5K(spi0, eth_cs, mac=MAC_ADDRESS)
-        log(f"WIZ5500 ready — DHCP IP: {eth.pretty_ip(eth.ip_address)}")
-    else:
-        # Static IP: init chip only (no DHCP), configure address in _configure_eth()
-        # once the link comes up (handles boot-without-cable cleanly).
-        eth = WIZNET5K(spi0, eth_cs, is_dhcp=False, mac=MAC_ADDRESS)
-        log("WIZ5500 found — waiting for link (static IP)")
+    # Always init chip-only first (is_dhcp=False) — this is a fast SPI register
+    # setup that requires no Ethernet link.  DHCP is deferred to _configure_eth()
+    # so it only runs after link_status is confirmed up, avoiding the ticks_diff
+    # overflow that occurs when DHCP starts before the PHY has negotiated a link.
+    eth = WIZNET5K(spi0, eth_cs, is_dhcp=False, mac=MAC_ADDRESS)
+    log("WIZ5500 chip OK — waiting for link")
     status_pixel[0] = (0, 50, 80)   # cyan — Ethernet chip ready
 except Exception as e:
     eth = None
@@ -296,32 +292,45 @@ except Exception as e:
     status_pixel[0] = (50, 0, 0)    # red — Ethernet chip failed
 
 
-_eth_retry_at = 0.0   # Backoff timer — prevents rapid retry on static IP config failure
+_eth_retry_at = 0.0   # Backoff timer — prevents rapid retry on config failure
 
 
 def _configure_eth():
-    """Open UDP socket once DHCP/static IP is ready and Ethernet link is up.
+    """Apply IP config and open UDP socket once the Ethernet link is confirmed up.
 
-    For DHCP: IP was assigned in the constructor; this just opens the UDP socket
-    and marks configured.  For static IP: applies ifconfig then opens the socket.
-    Called every main loop tick; returns immediately once configured.
+    Called every main loop tick.  Returns immediately if already configured, no
+    hardware, no link, or within the backoff window.
+
+    DHCP strategy: chip is always initialised with is_dhcp=False at boot so no
+    link is required.  When _configure_eth() detects an established link it
+    reinitialises WIZNET5K with is_dhcp=True but WITHOUT the reset pin, so only
+    a software register reset occurs.  The PHY stays connected and DHCP completes
+    with the link already stable — avoiding the ticks_diff overflow that happens
+    when DHCP starts before the link has been negotiated.
     """
-    global _eth_configured, udp, _pixel_off_at, _eth_retry_at
+    global _eth_configured, udp, _pixel_off_at, _eth_retry_at, eth
     if _eth_configured or eth is None:
         return
     if not eth.link_status:
         return
     if time.monotonic() < _eth_retry_at:
         return
-    if not USE_DHCP:
-        try:
+    try:
+        if USE_DHCP:
+            log("Ethernet link up — requesting DHCP...")
+            # Brief pause: let link fully settle before DHCP discover goes out.
+            time.sleep(0.5)
+            # Reinit without RST pin = software reset only; PHY stays connected.
+            eth = WIZNET5K(spi0, eth_cs, is_dhcp=True, mac=MAC_ADDRESS)
+            log(f"DHCP IP: {eth.pretty_ip(eth.ip_address)}")
+        else:
             eth.ifconfig = (STATIC_IP, SUBNET_MASK, GATEWAY_IP, DNS_SERVER)
             log(f"Ethernet link up — static IP: {'.'.join(str(b) for b in STATIC_IP)}")
-        except Exception as e:
-            log(f"WARNING: Ethernet static IP config failed: {e}")
-            _eth_retry_at = time.monotonic() + 10.0
-            return
-    _eth_configured = True
+        _eth_configured = True
+    except Exception as e:
+        log(f"WARNING: Ethernet config failed: {e}")
+        _eth_retry_at = time.monotonic() + 10.0
+        return
     try:
         eth_pool = wiznet_socketpool.SocketPool(eth)
         udp = eth_pool.socket(eth_pool.AF_INET, eth_pool.SOCK_DGRAM)
