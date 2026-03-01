@@ -18,4 +18,4 @@ STATUS_LED_BRIGHTNESS = "30"   # 0-100 percent
 # RADIO_EN_PIN = "A3"   # RFM95W LDO EN pad   — enables 3.3V radio rail
 
 # --- Peripheral enable pin (gateway only) ---
-# RADIO_EN_PIN = "A2"   # RFM95W LDO EN pad   — enables 3.3V radio rail
+# RADIO_EN_PIN = "D9"   # RFM95W LDO EN pad   — enables 3.3V radio rail

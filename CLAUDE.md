@@ -79,7 +79,9 @@ Key functions:
 
 Configurable at top of file: static IP (`192.168.1.50`), device-to-DMX address map (6 devices), LoRa radio params (SF7, 250kHz BW).
 
-Hardware SPI buses: primary SPI → WIZ5500 (CS=D9); secondary SPI → RFM95W (CS=D13, RST=A0, IRQ=A1).
+Hardware SPI buses: primary SPI → WIZ5500 (CS=A5, RST=A0); secondary SPI → RFM95W (CS=D13, RST=D5, IRQ=D6).
+
+Boot NeoPixel sequence: amber → cyan dim (ETH init) → cyan (ETH OK) / red (fail) → green dim (LoRa init) → green (LoRa OK) / amber (fail) → blue (WiFi AP) → off (running). Cyan 2s flash when Ethernet link comes up. During operation, flashes per-device colour on each command sent.
 
 ### Endpoint (`endpoint/code.py`)
 

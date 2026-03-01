@@ -18,7 +18,8 @@
 #     SCK  -> SCK   (board.SCK  — primary SPI clock)
 #     MOSI -> MOSI  (board.MOSI — primary SPI TX)
 #     MISO -> MISO  (board.MISO — primary SPI RX)
-#     CS   -> D9    (board.D9   — chip select)
+#     CS   -> A5    (board.A5   — chip select)
+#     RST  -> A0    (board.A0   — hardware reset)
 #
 #   RFM95W Breakout (#3072) — Second SPI bus:
 #     VIN  -> 3.3V  (Feather 3V3 pin)
@@ -27,8 +28,8 @@
 #     MOSI -> D11   (board.D11  — second SPI TX)
 #     MISO -> D12   (board.D12  — second SPI RX)
 #     CS   -> D13   (board.D13  — chip select)
-#     RST  -> A0    (board.A0)
-#     G0   -> A1    (board.A1   — DIO0/IRQ)
+#     RST  -> D5    (board.D5)
+#     G0   -> D6    (board.D6   — DIO0/IRQ)
 #     Antenna: spring antenna (#4269) to uFL connector
 #
 # SETUP:
@@ -154,7 +155,7 @@ ARTNET_UNIVERSE = int(os.getenv("ARTNET_UNIVERSE", "1"))  # Must match Eos outpu
 # REQUIRED on hardware: 10kΩ pull-down to GND on the EN pad so it stays LOW
 # while the ESP32 GPIO is floating at cold boot.
 # Note: WIZ5500 has no enable pin — it is always on when powered.
-# Example in settings.toml:  RADIO_EN_PIN = "A2"
+# Example in settings.toml:  RADIO_EN_PIN = "D9"
 _radio_en_pin_name = os.getenv("RADIO_EN_PIN")
 
 # --- LoRa ---
@@ -247,9 +248,14 @@ MIN_ARTNET_SIZE   = 18
 log(f"Theater LoRa Gateway booting ({PROTOCOL.upper()})...")
 log("Board: Adafruit ESP32-S3 Feather (#5477)")
 
+# Status NeoPixel — initialised early so it can show boot progress
+status_pixel = neopixel.NeoPixel(board.NEOPIXEL, 1, brightness=1.0, auto_write=True)
+_pixel_off_at = 0.0
+status_pixel[0] = (40, 20, 0)   # amber — starting up
+
 # -------------------------------------------------------------------------
 # Primary SPI — WIZ5500 Ethernet Breakout (#6348)
-# board.SCK=SCK, board.MOSI=MOSI, board.MISO=MISO, CS=D9
+# board.SCK=SCK, board.MOSI=MOSI, board.MISO=MISO, CS=A5
 # -------------------------------------------------------------------------
 spi0 = busio.SPI(
     clock=board.SCK,
@@ -257,25 +263,66 @@ spi0 = busio.SPI(
     MISO=board.MISO,
 )
 
-eth_cs = digitalio.DigitalInOut(board.D9)
+eth_cs = digitalio.DigitalInOut(board.A5)
 eth_cs.direction = digitalio.Direction.OUTPUT
 eth_cs.value = True   # Deassert CS before init
 
+eth_rst = digitalio.DigitalInOut(board.A0)
+
+status_pixel[0] = (0, 15, 30)   # cyan dim — Ethernet chip initializing
 log("Initialising WIZ5500 Ethernet...")
+_eth_configured = False   # True once ifconfig/DHCP has been applied
 try:
-    eth = WIZNET5K(spi0, eth_cs, mac=MAC_ADDRESS)
-    log("WIZ5500 Ethernet found")
-    if USE_DHCP:
-        log("Getting IP via DHCP...")
-        eth.dhcp()
-        log(f"Ethernet IP: {eth.pretty_ip(eth.ip_address)}")
-    else:
-        eth.ifconfig = (STATIC_IP, SUBNET_MASK, GATEWAY_IP, DNS_SERVER)
-        log(f"Ethernet static IP: {'.'.join(str(b) for b in STATIC_IP)}")
+    eth = WIZNET5K(spi0, eth_cs, reset=eth_rst, mac=MAC_ADDRESS)
+    log("WIZ5500 found — waiting for link")
+    status_pixel[0] = (0, 50, 80)   # cyan — Ethernet chip ready
 except Exception as e:
     eth = None
     log(f"WARNING: Ethernet not available: {e}")
     log("sACN/ArtNet disabled — web UI still active")
+    status_pixel[0] = (50, 0, 0)    # red — Ethernet chip failed
+
+
+def _configure_eth():
+    """Apply IP config and open UDP socket once the Ethernet link is up."""
+    global _eth_configured, udp, _pixel_off_at
+    if _eth_configured or eth is None:
+        return
+    if not eth.link_status:
+        return
+    try:
+        if USE_DHCP:
+            log("Ethernet link up — getting IP via DHCP...")
+            eth.dhcp()
+            log(f"Ethernet IP: {eth.pretty_ip(eth.ip_address)}")
+        else:
+            eth.ifconfig = (STATIC_IP, SUBNET_MASK, GATEWAY_IP, DNS_SERVER)
+            log(f"Ethernet link up — static IP: {'.'.join(str(b) for b in STATIC_IP)}")
+        _eth_configured = True
+    except Exception as e:
+        log(f"WARNING: Ethernet config failed: {e}")
+        return
+    try:
+        eth_pool = wiznet_socketpool.SocketPool(eth)
+        udp = eth_pool.socket(eth_pool.AF_INET, eth_pool.SOCK_DGRAM)
+        if PROTOCOL == "sacn":
+            udp.bind(('', SACN_PORT))
+            udp.settimeout(0)
+            log(f"Listening for sACN on UDP port {SACN_PORT}, universe {SACN_UNIVERSE}")
+        else:
+            try:
+                udp.setsockopt(eth_pool.SOL_SOCKET, eth_pool.SO_BROADCAST, 1)
+            except (AttributeError, OSError):
+                pass
+            udp.bind(('', ARTNET_PORT))
+            udp.settimeout(0)
+            log(f"Listening for ArtNet on UDP port {ARTNET_PORT}, universe {ARTNET_UNIVERSE}")
+    except Exception as e:
+        udp = None
+        log(f"WARNING: UDP socket setup failed: {e}")
+        return
+    status_pixel[0] = (0, 60, 100)  # cyan flash — Ethernet link up
+    _pixel_off_at = time.monotonic() + 2.0
 
 # --- RFM95W radio enable (LDO EN pad) ---
 _radio_en = None
@@ -292,7 +339,7 @@ if _radio_en_pin_name:
 
 # -------------------------------------------------------------------------
 # Second SPI — RFM95W Breakout (#3072)
-# D10=SCK, D11=MOSI, D12=MISO, D13=CS, A0=RST, A1=G0/IRQ
+# D10=SCK, D11=MOSI, D12=MISO, D13=CS, D5=RST, D6=G0/IRQ
 # ESP32-S3 GPIO matrix allows any pins as SPI — fully independent from spi0
 # -------------------------------------------------------------------------
 spi1 = busio.SPI(
@@ -302,12 +349,13 @@ spi1 = busio.SPI(
 )
 
 lora_cs  = digitalio.DigitalInOut(board.D13)
-lora_rst = digitalio.DigitalInOut(board.A0)
-# A1 (G0/DIO0) used internally by adafruit_rfm9x — no manual setup needed
+lora_rst = digitalio.DigitalInOut(board.D5)
+# D6 (G0/DIO0) used internally by adafruit_rfm9x — no manual setup needed
 
 lora_cs.direction = digitalio.Direction.OUTPUT
 lora_cs.value = True   # Deassert CS before init
 
+status_pixel[0] = (0, 25, 0)    # green dim — LoRa initializing
 log("Initialising RFM95W LoRa radio...")
 try:
     rfm9x = adafruit_rfm9x.RFM9x(spi1, lora_cs, lora_rst, LORA_FREQ)
@@ -318,19 +366,16 @@ try:
     rfm9x.enable_crc       = True
     rfm9x.node             = 0   # Gateway is node 0
     log(f"LoRa radio ready | SF{LORA_SF} BW{LORA_BW//1000}kHz @ {LORA_FREQ}MHz")
+    status_pixel[0] = (0, 80, 0)    # green — LoRa ready
 except Exception as e:
     rfm9x = None
     log(f"WARNING: LoRa radio not available: {e}")
     log("LoRa transmit disabled — web UI still active")
+    status_pixel[0] = (50, 20, 0)   # amber — LoRa failed
 
 # =============================================================================
 # WIFI ACCESS POINT + HTTP SERVER
 # =============================================================================
-
-# Status NeoPixel (board.NEOPIXEL — single pixel on Feather ESP32-S3)
-status_pixel = neopixel.NeoPixel(board.NEOPIXEL, 1, brightness=1.0, auto_write=True)
-status_pixel[0] = (0, 0, 0)
-_pixel_off_at = 0.0
 
 def flash_pixel(device_id):
     """Flash the onboard NeoPixel in the color for the given device ID."""
@@ -339,6 +384,7 @@ def flash_pixel(device_id):
     status_pixel[0] = color
     _pixel_off_at = time.monotonic() + PIXEL_FLASH_SEC
 
+status_pixel[0] = (0, 0, 40)    # blue — WiFi AP starting
 log(f"Starting WiFi AP '{AP_SSID}'...")
 try:
     wifi.radio.start_ap(ssid=AP_SSID, password=AP_PASSWORD)
@@ -493,36 +539,12 @@ try:
     log(f"Web UI at http://{ap_ip}:8080 (AP)")
     if sta_ip:
         log(f"Web UI at http://{sta_ip}:8080 (local network)")
+    status_pixel[0] = (0, 0, 0)    # off — running
 except Exception as e:
     log(f"FATAL: HTTP server start failed: {e}")
     raise
 
-# =============================================================================
-# UDP SOCKET
-# =============================================================================
-
-if eth is not None:
-    log("Opening UDP socket...")
-    try:
-        eth_pool = wiznet_socketpool.SocketPool(eth)
-        udp = eth_pool.socket(eth_pool.AF_INET, eth_pool.SOCK_DGRAM)
-        if PROTOCOL == "sacn":
-            udp.bind(('', SACN_PORT))
-            udp.settimeout(0)
-            log(f"Listening for sACN on UDP port {SACN_PORT}, universe {SACN_UNIVERSE}")
-        else:
-            try:
-                udp.setsockopt(eth_pool.SOL_SOCKET, eth_pool.SO_BROADCAST, 1)
-            except (AttributeError, OSError):
-                pass  # Broadcast opt may not be needed on WIZnet hardware
-            udp.bind(('', ARTNET_PORT))
-            udp.settimeout(0)
-            log(f"Listening for ArtNet broadcast on UDP port {ARTNET_PORT}, universe {ARTNET_UNIVERSE}")
-    except Exception as e:
-        udp = None
-        log(f"WARNING: UDP socket setup failed: {e}")
-else:
-    udp = None
+udp = None   # Opened by _configure_eth() once Ethernet link is up
 
 # =============================================================================
 # STATE
@@ -734,6 +756,9 @@ parse_func = parse_sacn if PROTOCOL == "sacn" else parse_artnet
 
 while True:
     now = time.monotonic()
+
+    # --- Bring up Ethernet when link is available ---
+    _configure_eth()
 
     # --- Process pending sends (LoRa and/or WiFi sim) ---
     if pending_sends and (rfm9x is not None or sim_udp is not None):

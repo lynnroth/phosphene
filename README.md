@@ -38,13 +38,45 @@ phosphene/
 
 ## How It Works
 
-The **gateway** sits at the side of the stage or in the booth. It receives sACN (E1.31) or ArtNet from Eos over Ethernet and translates DMX channel values into compact 9-byte LoRa packets. Each command is transmitted three times at 50ms intervals for redundancy. Protocol selection is via the `PROTOCOL` constant in the code (`"sacn"` or `"artnet"`).
+The **gateway** sits at the side of the stage or in the booth. It receives sACN (E1.31) or ArtNet from Eos over Ethernet and translates DMX channel values into compact 12-byte LoRa packets. Each command is transmitted three times at 50ms intervals for redundancy. Protocol selection is via the `PROTOCOL` constant in the code (`"sacn"` or `"artnet"`). A WiFi access point provides a touch-friendly web UI for direct control and live monitoring.
 
-The **endpoints** are battery-powered, fully wireless, and hidden in props or rigging. Each listens for LoRa packets addressed to its device ID (or the broadcast address 0), applies duplicate suppression, and runs the specified effect on its NeoPixel strip.
+The **endpoints** are battery-powered, fully wireless, and hidden in props or rigging. Each listens for LoRa packets addressed to its device ID (or the broadcast address 0), applies duplicate suppression, and runs the specified effect on its NeoPixel strip. When ACK mode is enabled on the gateway, endpoints send back a confirmation packet carrying RSSI and battery level.
+
+## Status Indicators
+
+### Gateway — onboard NeoPixel (boot sequence)
+
+The gateway's single onboard NeoPixel steps through colours during boot so you can see exactly where it stops if something fails.
+
+| Colour | Stage |
+|---|---|
+| Amber | Power-on, starting up |
+| Cyan (dim) | WIZ5500 Ethernet chip initialising |
+| Cyan | WIZ5500 ready |
+| **Red** (stays on) | WIZ5500 failed — check SPI wiring / RST pin |
+| Green (dim) | RFM95W LoRa radio initialising |
+| Green | LoRa radio ready |
+| **Amber** (stays on) | LoRa radio failed — check SPI wiring / EN pin |
+| Blue | WiFi AP starting |
+| Off | Fully running — ready for commands |
+| Cyan flash (2 s) | Ethernet link came up, IP configured |
+
+During normal operation the pixel flashes briefly per-device colour when a command is sent (red=device 1, green=2, blue=3, cyan=4, magenta=5, amber=broadcast).
+
+### Endpoint — onboard NeoPixel (event flashes)
+
+The endpoint pixel flashes on packet events. Controlled by `STATUS_LED_ENABLED` and `STATUS_LED_BRIGHTNESS` in `settings.toml` (set `STATUS_LED_ENABLED = "0"` to disable during performance).
+
+| Colour | Event |
+|---|---|
+| Green | Valid command received and applied |
+| Yellow | Duplicate command ignored |
+| Red | Checksum error |
+| Cyan flash | ACK transmitted back to gateway |
 
 ## Packet Protocol
 
-9-byte binary packet, all fields 0–255:
+12-byte binary command packet (gateway → endpoint):
 
 | Byte | Field | Notes |
 |---|---|---|
@@ -56,7 +88,21 @@ The **endpoints** are battery-powered, fully wireless, and hidden in props or ri
 | 5 | Green | 0–255 |
 | 6 | Blue | 0–255 |
 | 7 | Speed | 0=slow, 255=fast |
-| 8 | Checksum | XOR of bytes 0–7 |
+| 8 | Config flags | Bit 0 = ACK requested |
+| 9–10 | Reserved | 0x00 |
+| 11 | Checksum | XOR of bytes 0–10 |
+
+7-byte ACK packet (endpoint → gateway, when ACK mode enabled):
+
+| Byte | Field | Notes |
+|---|---|---|
+| 0 | 0xAC | Marker |
+| 1 | Device ID | Sender |
+| 2 | Command ID | Command being ACKed |
+| 3 | RSSI encoded | `rssi + 200`; decode: `byte − 200` |
+| 4 | Battery % | 0–100, or 255 = not available |
+| 5 | Reserved | 0x00 |
+| 6 | Checksum | XOR of bytes 0–5 |
 
 ## Presets
 
