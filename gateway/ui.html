@@ -212,7 +212,11 @@ function applyWheelPoint(clientX,clientY){
   const css=canvas.offsetWidth;
   const cx=css/2,cy=css/2,r=cx-6;
   const dx=clientX-rect.left-cx,dy=clientY-rect.top-cy;
-  const s=Math.min(Math.sqrt(dx*dx+dy*dy)/r,1);
+  // Map radius to saturation matching the gradient: flat white zone = inner 30%,
+  // then S scales 0→1 over the remaining 70% out to the edge.
+  const WHITE_ZONE=0.3;
+  const dist=Math.min(Math.sqrt(dx*dx+dy*dy)/r,1);
+  const s=dist<=WHITE_ZONE?0:Math.min((dist-WHITE_ZONE)/(1-WHITE_ZONE),1);
   let h=(Math.atan2(dy,dx)+Math.PI/2)*180/Math.PI;
   if(h<0)h+=360;if(h>=360)h-=360;
   wheelH=h;wheelS=s;
