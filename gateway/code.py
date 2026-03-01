@@ -296,7 +296,7 @@ _eth_retry_at = 0.0   # Backoff timer — prevents rapid retry on config failure
 
 
 def _configure_eth():
-    """Apply IP config and open UDP socket once the Ethernet link is confirmed up.
+    """Apply IP config, open UDP socket, and start Ethernet HTTP server once link is up.
 
     Called every main loop tick.  Returns immediately if already configured, no
     hardware, no link, or within the backoff window.
@@ -308,7 +308,7 @@ def _configure_eth():
     with the link already stable — avoiding the ticks_diff overflow that happens
     when DHCP starts before the link has been negotiated.
     """
-    global _eth_configured, udp, _pixel_off_at, _eth_retry_at, eth
+    global _eth_configured, udp, _pixel_off_at, _eth_retry_at, eth, eth_server, _eth_ip_str
     if _eth_configured or eth is None:
         return
     if not eth.link_status:
@@ -322,10 +322,12 @@ def _configure_eth():
             time.sleep(0.5)
             # Reinit without RST pin = software reset only; PHY stays connected.
             eth = WIZNET5K(spi0, eth_cs, is_dhcp=True, mac=MAC_ADDRESS)
-            log(f"DHCP IP: {eth.pretty_ip(eth.ip_address)}")
+            _eth_ip_str = eth.pretty_ip(eth.ip_address)
+            log(f"DHCP IP: {_eth_ip_str}")
         else:
             eth.ifconfig = (STATIC_IP, SUBNET_MASK, GATEWAY_IP, DNS_SERVER)
-            log(f"Ethernet link up — static IP: {'.'.join(str(b) for b in STATIC_IP)}")
+            _eth_ip_str = '.'.join(str(b) for b in STATIC_IP)
+            log(f"Ethernet link up — static IP: {_eth_ip_str}")
         _eth_configured = True
     except Exception as e:
         log(f"WARNING: Ethernet config failed: {e}")
@@ -350,6 +352,17 @@ def _configure_eth():
         udp = None
         log(f"WARNING: UDP socket setup failed: {e}")
         return
+    try:
+        eth_server = Server(eth_pool, debug=False)
+        eth_server.route("/")(serve_ui)
+        eth_server.route("/status")(handle_status)
+        eth_server.route("/send", [POST])(handle_send)
+        eth_server.route("/config", [POST])(handle_config)
+        eth_server.start("0.0.0.0", port=8080)
+        log(f"Web UI also at http://{_eth_ip_str}:8080 (Ethernet)")
+    except Exception as e:
+        eth_server = None
+        log(f"WARNING: Ethernet HTTP server failed: {e}")
     status_pixel[0] = (0, 60, 100)  # cyan flash — Ethernet link up
     _pixel_off_at = time.monotonic() + 2.0
 
@@ -573,7 +586,9 @@ except Exception as e:
     log(f"FATAL: HTTP server start failed: {e}")
     raise
 
-udp = None   # Opened by _configure_eth() once Ethernet link is up
+udp        = None   # Opened by _configure_eth() once Ethernet link is up
+eth_server = None   # Second HTTP server on the Ethernet interface
+_eth_ip_str = None  # Ethernet IP as a string, set by _configure_eth()
 
 # =============================================================================
 # STATE
@@ -846,6 +861,13 @@ while True:
         log(f"[server.poll OSError] {e}")
     except Exception as e:
         log(f"[server.poll ERROR] {type(e).__name__}: {e}")
+    if eth_server is not None:
+        try:
+            eth_server.poll()
+        except OSError as e:
+            log(f"[eth_server.poll OSError] {e}")
+        except Exception as e:
+            log(f"[eth_server.poll ERROR] {type(e).__name__}: {e}")
 
     # --- Status pixel off timer ---
     if _pixel_off_at and now >= _pixel_off_at:
@@ -861,6 +883,8 @@ while True:
         log(f"Web UI: http://{ap_ip}:8080")
         if sta_ip:
             log(f"        http://{sta_ip}:8080")
+        if _eth_ip_str:
+            log(f"        http://{_eth_ip_str}:8080 (eth)")
 
     loop_tick += 1
 
