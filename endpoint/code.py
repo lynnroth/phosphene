@@ -86,7 +86,7 @@ NUM_PIXELS = int(os.getenv("NUM_PIXELS", "40"))
 NEOPIXEL_PIN = getattr(board, os.getenv("NEOPIXEL_PIN", "D5"))
 
 # --- WiFi Simulation Mode ---
-# Listens for 9-byte UDP packets from the gateway over WiFi instead of (or alongside) LoRa.
+# Listens for 12-byte UDP packets from the gateway over WiFi instead of (or alongside) LoRa.
 # WIFI_SIM_ENABLED: set to "0" in settings.toml to disable.
 # WIFI_SIM_NETWORK: "ap" = join gateway AP (default), "sta" = join existing network.
 WIFI_SIM_ENABLED = os.getenv("WIFI_SIM_ENABLED", "1") != "0"

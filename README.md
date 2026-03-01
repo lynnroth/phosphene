@@ -82,7 +82,7 @@ The endpoint pixel flashes on packet events. Controlled by `STATUS_LED_ENABLED` 
 |---|---|---|
 | 0 | Device ID | 0 = broadcast, 1–5 = specific endpoint |
 | 1 | Command ID | Auto-increments, used for dedup |
-| 2 | Preset | 0–51, see preset map below |
+| 2 | Preset | 0–27, see preset map below |
 | 3 | Intensity | 0–255 |
 | 4 | Red | 0–255 |
 | 5 | Green | 0–255 |
@@ -182,7 +182,7 @@ The web UI and Eos sACN are designed for independent use — both routes drive t
 
 ### Endpoints
 1. Install CircuitPython 10.1.1 for **Adafruit Feather ESP32-S3 4MB/2MB PSRAM**
-2. Install libraries into `/lib`: `adafruit_rfm9x`, `neopixel`, `adafruit_pixelbuf`
+2. Install libraries into `/lib`: `adafruit_rfm9x`, `neopixel`, `adafruit_pixelbuf`, `adafruit_max1704x`, `adafruit_lc709203f`, `adafruit_bus_device`
 3. Edit `endpoint/code.py`: set `DEVICE_ID` (1 on first board, 2 on second), set `NUM_PIXELS`
 4. Copy `endpoint/code.py` to each board as `code.py`
 

@@ -44,7 +44,7 @@
 #   5. Copy this file to the board as code.py
 #
 # EOS PATCH GUIDE (per device, 7 channels each):
-#   Ch+0: Preset select  (DMX 0-255 maps to presets 0-51, 5 values per preset)
+#   Ch+0: Preset select  (DMX 0-255 maps to presets 0-27, 5 values per preset)
 #   Ch+1: Intensity      (0-255)
 #   Ch+2: Red            (0-255)
 #   Ch+3: Green          (0-255)
@@ -118,7 +118,7 @@ AP_SSID     = os.getenv("WIFI_AP_SSID",     "phosphene")
 AP_PASSWORD = os.getenv("WIFI_AP_PASSWORD", "gobo1234")
 
 # --- WiFi Simulation Mode ---
-# Broadcasts the same 9-byte packets over UDP so endpoints can receive them without LoRa.
+# Broadcasts the same 12-byte packets over UDP so endpoints can receive them without LoRa.
 # WIFI_SIM_ENABLED: set "0" in settings.toml to disable.
 # WIFI_SIM_NETWORK: "ap" = use gateway's own AP (default), "sta" = use station network.
 WIFI_SIM_ENABLED = int(os.getenv("WIFI_SIM_ENABLED", 1)) != 0
@@ -713,7 +713,7 @@ def dmx_to_preset(raw_value):
       120-124 = 24 Theater Chase  125-129 = 25 Rainbow Chase
       130-134 = 26 Aurora         135-139 = 27 Wave Pastel
     """
-    return min(raw_value // 5, 51)
+    return min(raw_value // 5, 27)
 
 
 def schedule_sends(packet):

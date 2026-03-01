@@ -46,7 +46,7 @@ Eos console → sACN UDP → Gateway (WIZ5500 Ethernet)
 |------|-------|-------|
 | 0 | Device ID | 0=broadcast, 1–5=specific endpoint |
 | 1 | Command ID | Auto-incrementing, used for dedup |
-| 2 | Preset | 0–25 (maps to effect function) |
+| 2 | Preset | 0–27 (maps to effect function) |
 | 3 | Intensity | 0–255 |
 | 4–6 | R, G, B | Color |
 | 7 | Speed | 0=slow, 255=fast |
@@ -73,7 +73,7 @@ ACK stagger: endpoint sends at `150ms + DEVICE_ID × 80ms` after receiving (avoi
 Key functions:
 - `parse_sacn(data)` — parses raw E1.31 UDP payload
 - `build_packet(...)` — constructs the 12-byte LoRa command
-- `dmx_to_preset(raw_value)` — maps DMX 0–255 to preset index 0–25
+- `dmx_to_preset(raw_value)` — maps DMX 0–255 to preset index 0–27
 - `schedule_sends(packet)` — queues 3 redundant transmits at 50ms spacing
 - `check_device_changes()` — detects DMX changes and triggers scheduling
 
@@ -89,7 +89,7 @@ Key configuration at top of file: `DEVICE_ID` (unique per board, 1–5), `NUM_PI
 
 Key functions:
 - `apply_packet(packet)` — verifies checksum, deduplicates (1s window by command ID), updates effect state
-- `effect_*()` — 26 effect implementations called from main loop
+- `effect_*()` — 28 effect implementations called from main loop
 - `scale_color(r, g, b, intensity)` — applies intensity scaling
 - `speed_to_rate(speed_byte, slow_val, fast_val)` — maps speed byte to animation interval
 - `hsv_to_rgb(h, s, v)` — used by rainbow/color-cycling effects
@@ -100,7 +100,7 @@ Main loop runs at ~100fps (10ms sleep), receiving LoRa packets non-blocking (`ti
 
 | Ch | Parameter |
 |----|-----------|
-| 1 | Preset (0–255 mapped to 0–25) |
+| 1 | Preset (0–255 mapped to 0–27) |
 | 2 | Intensity |
 | 3 | Red |
 | 4 | Green |
