@@ -121,7 +121,7 @@ AP_PASSWORD = os.getenv("WIFI_AP_PASSWORD", "gobo1234")
 # Broadcasts the same 9-byte packets over UDP so endpoints can receive them without LoRa.
 # WIFI_SIM_ENABLED: set "0" in settings.toml to disable.
 # WIFI_SIM_NETWORK: "ap" = use gateway's own AP (default), "sta" = use station network.
-WIFI_SIM_ENABLED = os.getenv("WIFI_SIM_ENABLED", "1") != "0"
+WIFI_SIM_ENABLED = int(os.getenv("WIFI_SIM_ENABLED", 1)) != 0
 WIFI_SIM_NETWORK = os.getenv("WIFI_SIM_NETWORK", "ap")
 WIFI_SIM_PORT    = 5569   # Must match WIFI_SIM_PORT on all endpoints
 
@@ -131,7 +131,7 @@ PROTOCOL = os.getenv("PROTOCOL", "sacn")
 
 # --- Ethernet Network ---
 # USE_DHCP: set "1" in settings.toml to use DHCP instead of static IP
-USE_DHCP = os.getenv("USE_DHCP", "0") != "0"
+USE_DHCP = int(os.getenv("USE_DHCP", 0)) != 0
 
 def _parse_ip(key, default):
     s = os.getenv(key, default)
