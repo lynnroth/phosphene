@@ -358,7 +358,7 @@ def _configure_eth():
         eth_server.route("/status")(handle_status)
         eth_server.route("/send", [POST])(handle_send)
         eth_server.route("/config", [POST])(handle_config)
-        eth_server.start("0.0.0.0", port=8080)
+        eth_server.start(_eth_ip_str, port=8080)
         log(f"Web UI also at http://{_eth_ip_str}:8080 (Ethernet)")
     except Exception as e:
         eth_server = None
