@@ -165,7 +165,7 @@ Default patch:
 2. Install libraries into `/lib`: `adafruit_rfm9x`, `adafruit_wiznet5k`, `adafruit_bus_device`, `adafruit_httpserver`
 3. Edit `gateway/code.py`:
    - Set `PROTOCOL` to `"sacn"` or `"artnet"`
-   - Set `STATIC_IP` to match your network (or enable `USE_DHCP`)
+   - Set `STATIC_IP` to match your show network subnet (DHCP is not supported)
    - Set universe (`SACN_UNIVERSE` or `ARTNET_UNIVERSE`) to match Eos output
 4. Copy `gateway/code.py` to the board as `code.py`
 5. Copy `gateway/ui.html` to `CIRCUITPY/gateway/ui.html` on the board

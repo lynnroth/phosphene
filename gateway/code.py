@@ -273,7 +273,7 @@ status_pixel[0] = (0, 15, 30)   # cyan dim — Ethernet chip initializing
 log("Initialising WIZ5500 Ethernet...")
 _eth_configured = False   # True once ifconfig/DHCP has been applied
 try:
-    eth = WIZNET5K(spi0, eth_cs, reset=eth_rst, mac=MAC_ADDRESS)
+    eth = WIZNET5K(spi0, eth_cs, reset=eth_rst, is_dhcp=False, mac=MAC_ADDRESS)
     log("WIZ5500 found — waiting for link")
     status_pixel[0] = (0, 50, 80)   # cyan — Ethernet chip ready
 except Exception as e:
@@ -283,24 +283,41 @@ except Exception as e:
     status_pixel[0] = (50, 0, 0)    # red — Ethernet chip failed
 
 
+_eth_retry_at = 0.0   # Backoff timer — prevents rapid retry on config failure
+
+
 def _configure_eth():
-    """Apply IP config and open UDP socket once the Ethernet link is up."""
-    global _eth_configured, udp, _pixel_off_at
+    """Apply IP config (DHCP or static) and open UDP socket once the Ethernet link is up.
+
+    Called every main loop tick.  Returns immediately if already configured, no hardware,
+    no link, or within the backoff window after a failed attempt.
+
+    DHCP note: the initial WIZNET5K constructor uses is_dhcp=False to avoid a
+    ticks-overflow bug that occurs when DHCP runs while the link is still settling
+    after a hardware RST.  Once the link is confirmed up, we reinit without the
+    reset pin (reset=None) so the chip stays live and DHCP completes cleanly.
+    """
+    global _eth_configured, udp, _pixel_off_at, _eth_retry_at, eth
     if _eth_configured or eth is None:
         return
     if not eth.link_status:
         return
+    if time.monotonic() < _eth_retry_at:
+        return
     try:
         if USE_DHCP:
-            log("Ethernet link up — getting IP via DHCP...")
-            eth.dhcp()
-            log(f"Ethernet IP: {eth.pretty_ip(eth.ip_address)}")
+            log("Ethernet link up — requesting IP via DHCP...")
+            # Reinit without reset pin: avoids hardware RST that drops the link and
+            # causes a ticks_diff overflow inside the DHCP timeout loop.
+            eth = WIZNET5K(spi0, eth_cs, is_dhcp=True, mac=MAC_ADDRESS)
+            log(f"Ethernet IP (DHCP): {eth.pretty_ip(eth.ip_address)}")
         else:
             eth.ifconfig = (STATIC_IP, SUBNET_MASK, GATEWAY_IP, DNS_SERVER)
             log(f"Ethernet link up — static IP: {'.'.join(str(b) for b in STATIC_IP)}")
         _eth_configured = True
     except Exception as e:
         log(f"WARNING: Ethernet config failed: {e}")
+        _eth_retry_at = time.monotonic() + 10.0
         return
     try:
         eth_pool = wiznet_socketpool.SocketPool(eth)
