@@ -267,14 +267,27 @@ eth_cs = digitalio.DigitalInOut(board.A5)
 eth_cs.direction = digitalio.Direction.OUTPUT
 eth_cs.value = True   # Deassert CS before init
 
+# RST pin (A0) is wired to WIZ5500 but not passed to WIZNET5K — the library
+# would toggle it for a hardware reset which drops the link and causes DHCP to
+# fail (ticks_diff overflow).  Driving it HIGH here ensures it never floats low.
 eth_rst = digitalio.DigitalInOut(board.A0)
+eth_rst.direction = digitalio.Direction.OUTPUT
+eth_rst.value = True
 
 status_pixel[0] = (0, 15, 30)   # cyan dim — Ethernet chip initializing
 log("Initialising WIZ5500 Ethernet...")
-_eth_configured = False   # True once ifconfig/DHCP has been applied
+_eth_configured = False   # True once IP has been assigned and UDP socket is open
 try:
-    eth = WIZNET5K(spi0, eth_cs, reset=eth_rst, is_dhcp=False, mac=MAC_ADDRESS)
-    log("WIZ5500 found — waiting for link")
+    if USE_DHCP:
+        # Simple single-step init with DHCP — identical to Adafruit's example.
+        # RST pin is held HIGH above; not passed here so no hardware reset cycle.
+        eth = WIZNET5K(spi0, eth_cs, mac=MAC_ADDRESS)
+        log(f"WIZ5500 ready — DHCP IP: {eth.pretty_ip(eth.ip_address)}")
+    else:
+        # Static IP: init chip only (no DHCP), configure address in _configure_eth()
+        # once the link comes up (handles boot-without-cable cleanly).
+        eth = WIZNET5K(spi0, eth_cs, is_dhcp=False, mac=MAC_ADDRESS)
+        log("WIZ5500 found — waiting for link (static IP)")
     status_pixel[0] = (0, 50, 80)   # cyan — Ethernet chip ready
 except Exception as e:
     eth = None
@@ -283,42 +296,32 @@ except Exception as e:
     status_pixel[0] = (50, 0, 0)    # red — Ethernet chip failed
 
 
-_eth_retry_at = 0.0   # Backoff timer — prevents rapid retry on config failure
+_eth_retry_at = 0.0   # Backoff timer — prevents rapid retry on static IP config failure
 
 
 def _configure_eth():
-    """Apply IP config (DHCP or static) and open UDP socket once the Ethernet link is up.
+    """Open UDP socket once DHCP/static IP is ready and Ethernet link is up.
 
-    Called every main loop tick.  Returns immediately if already configured, no hardware,
-    no link, or within the backoff window after a failed attempt.
-
-    DHCP note: the initial WIZNET5K constructor uses is_dhcp=False to avoid a
-    ticks-overflow bug that occurs when DHCP runs while the link is still settling
-    after a hardware RST.  Once the link is confirmed up, we reinit without the
-    reset pin (reset=None) so the chip stays live and DHCP completes cleanly.
+    For DHCP: IP was assigned in the constructor; this just opens the UDP socket
+    and marks configured.  For static IP: applies ifconfig then opens the socket.
+    Called every main loop tick; returns immediately once configured.
     """
-    global _eth_configured, udp, _pixel_off_at, _eth_retry_at, eth
+    global _eth_configured, udp, _pixel_off_at, _eth_retry_at
     if _eth_configured or eth is None:
         return
     if not eth.link_status:
         return
     if time.monotonic() < _eth_retry_at:
         return
-    try:
-        if USE_DHCP:
-            log("Ethernet link up — requesting IP via DHCP...")
-            # Reinit without reset pin: avoids hardware RST that drops the link and
-            # causes a ticks_diff overflow inside the DHCP timeout loop.
-            eth = WIZNET5K(spi0, eth_cs, is_dhcp=True, mac=MAC_ADDRESS)
-            log(f"Ethernet IP (DHCP): {eth.pretty_ip(eth.ip_address)}")
-        else:
+    if not USE_DHCP:
+        try:
             eth.ifconfig = (STATIC_IP, SUBNET_MASK, GATEWAY_IP, DNS_SERVER)
             log(f"Ethernet link up — static IP: {'.'.join(str(b) for b in STATIC_IP)}")
-        _eth_configured = True
-    except Exception as e:
-        log(f"WARNING: Ethernet config failed: {e}")
-        _eth_retry_at = time.monotonic() + 10.0
-        return
+        except Exception as e:
+            log(f"WARNING: Ethernet static IP config failed: {e}")
+            _eth_retry_at = time.monotonic() + 10.0
+            return
+    _eth_configured = True
     try:
         eth_pool = wiznet_socketpool.SocketPool(eth)
         udp = eth_pool.socket(eth_pool.AF_INET, eth_pool.SOCK_DGRAM)
