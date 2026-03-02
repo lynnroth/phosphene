@@ -697,7 +697,7 @@ def parse_artnet(data):
         log(f"[ARTNET] reject: dmx_length {dmx_length}")
         return None
 
-    log(f"[ARTNET] ok: {dmx_length}b universe={universe}")
+    #log(f"[ARTNET] ok: {dmx_length}b universe={universe}")
     return data[18:18 + dmx_length]
 
 
@@ -861,7 +861,7 @@ while True:
         try:
             raw, addr = udp.recvfrom(638)
             if raw:
-                log(f"[UDP RX] {len(raw)}b from {addr[0]}")
+                #log(f"[UDP RX] {len(raw)}b from {addr[0]}")
                 payload = parse_func(raw)
                 if payload is not None:
                     dmx_data[:len(payload)] = payload
@@ -874,7 +874,7 @@ while True:
         try:
             raw, addr = wifi_dmx_udp.recvfrom(638)
             if raw:
-                log(f"[UDP RX WiFi] {len(raw)}b from {addr[0]}")
+                #log(f"[UDP RX WiFi] {len(raw)}b from {addr[0]}")
                 payload = parse_func(raw)
                 if payload is not None:
                     dmx_data[:len(payload)] = payload

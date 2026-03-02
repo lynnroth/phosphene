@@ -2,7 +2,7 @@
 
 ## Overview
 
-Phosphene receives sACN Universe 1 from Eos. Each wireless endpoint occupies 7 consecutive DMX addresses. The gateway translates channel values to LoRa commands whenever a value changes.
+Phosphene receives sACN (E1.31) or ArtNet from Eos. Each wireless endpoint occupies 7 consecutive DMX channels. The gateway translates channel values into LoRa commands whenever a value changes.
 
 ## Default Address Map
 
@@ -15,7 +15,7 @@ Phosphene receives sACN Universe 1 from Eos. Each wireless endpoint occupies 7 c
 | Endpoint 4 | 22 | 22–28 |
 | Endpoint 5 | 29 | 29–35 |
 
-To change the patch, edit `DEVICE_PATCH` in `gateway/code.py`.
+To change the patch, set `PATCH_0` through `PATCH_5` in the gateway's `settings.toml`. Only devices with a `PATCH_N` key present are monitored. If no keys are set, the defaults above are used.
 
 ## Channel Layout (per device)
 
@@ -94,16 +94,30 @@ rm description.xml
 
 If not using the GDTF profile, patch manually:
 
+### sACN (E1.31)
+
 1. **Enable sACN output**: Setup > Show > Output > Add sACN Output
 2. **Set destination IP**: the gateway's static IP (default `192.168.1.50`)
-3. **Set universe**: Universe 1 (must match `SACN_UNIVERSE` in gateway code)
+3. **Set universe**: Universe 1 (must match `SACN_UNIVERSE` in `settings.toml`)
 4. **Patch channels**: Patch the 7-channel blocks per device at the addresses above
 5. **Create attribute palette** for Preset values so operators can select effects by name
+
+### ArtNet
+
+1. **Enable ArtNet output**: Setup > Show > Output > Add ArtNet Output
+2. **Set Broadcast Mode to Broadcast** — the gateway does not respond to ArtPoll, so Directed mode will not discover it
+3. **Enable broadcast** for each universe in the Per-Universe Overrides table
+4. **Set universe**: Universe 1 (must match `ARTNET_UNIVERSE` in `settings.toml`)
+5. **Patch channels**: Patch the 7-channel blocks per device at the addresses above
+
+### WiFi DMX (optional)
+
+If the Eos console is on the same WiFi network as the gateway (either connected to the gateway's AP, or both on the same LAN), set `DMX_WIFI_ENABLED = 1` in the gateway's `settings.toml`. The gateway will then listen for sACN or ArtNet on the WiFi interface on the same port as the configured protocol. No other Eos configuration changes are needed.
 
 ## Tips
 
 - Use **submasters** for each endpoint — one submaster per device makes it easy to bring endpoints in/out independently.
 - The **Intensity channel** scales all effects. Use it like a dimmer — effects still run at Intensity 0, they're just invisible, so when you bring it up the effect is already running.
 - **Speed 128** is a good middle default for most effects. Go lower for atmospheric/slow scenes, higher for energy/dance numbers.
-- The **broadcast address (50)** sends to all endpoints simultaneously. Useful for global blackout or synchronized looks.
+- The **broadcast device** (device 0, default address 50) sends to all endpoints simultaneously. Useful for global blackout or synchronized looks. The address is configurable via `PATCH_0` in `settings.toml`.
 - Gateway only sends a LoRa packet when a value **changes** — no traffic on a held cue.

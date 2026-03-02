@@ -10,7 +10,7 @@ Phosphene is a wireless battery-powered theatrical lighting system. An ETC Eos l
 
 - **Language:** CircuitPython 10.1.1 (runs directly on microcontrollers — no build step)
 - **Platform:** Adafruit ESP32-S3 Feather (#5477)
-- **Protocols:** sACN/E1.31 (UDP port 5568) → LoRa 915MHz → NeoPixel
+- **Protocols:** sACN/E1.31 (UDP 5568) or ArtNet (UDP 6454) → LoRa 915MHz → NeoPixel
 - **Key libraries:** `adafruit_rfm9x`, `adafruit_wiznet5k`, `neopixel`, `adafruit_bus_device`
 
 ## Deployment
@@ -29,7 +29,7 @@ There is no build system. Development workflow:
 ### Control Flow
 
 ```
-Eos console → sACN UDP → Gateway (WIZ5500 Ethernet)
+Eos console → sACN or ArtNet UDP → Gateway (WIZ5500 Ethernet, or WiFi if DMX_WIFI_ENABLED)
                                ↓ parse DMX channels
                          Build 12-byte LoRa packet
                                ↓ transmit 3× (50ms apart)
@@ -72,12 +72,13 @@ ACK stagger: endpoint sends at `150ms + DEVICE_ID × 80ms` after receiving (avoi
 
 Key functions:
 - `parse_sacn(data)` — parses raw E1.31 UDP payload
+- `parse_artnet(data)` — parses raw ArtNet ArtDmx payload
 - `build_packet(...)` — constructs the 12-byte LoRa command
 - `dmx_to_preset(raw_value)` — maps DMX 0–255 to preset index 0–27
 - `schedule_sends(packet)` — queues 3 redundant transmits at 50ms spacing
 - `check_device_changes()` — detects DMX changes and triggers scheduling
 
-Configurable at top of file: static IP (`192.168.1.50`), device-to-DMX address map (6 devices), LoRa radio params (SF7, 250kHz BW).
+All configurable options (static IP, protocol, universe, patch map, WiFi credentials, DMX_WIFI_ENABLED) are read from `settings.toml` on the board at boot. LoRa radio params (SF7, 250kHz BW) remain as constants in the code.
 
 Hardware SPI buses: primary SPI → WIZ5500 (CS=A5, RST=A0); secondary SPI → RFM95W (CS=D13, RST=D5, IRQ=D6).
 
@@ -112,8 +113,10 @@ Main loop runs at ~100fps (10ms sleep), receiving LoRa packets non-blocking (`ti
 
 | File | Purpose |
 |------|---------|
-| `gateway/code.py` | Gateway firmware: sACN → LoRa |
+| `gateway/code.py` | Gateway firmware: sACN/ArtNet → LoRa |
 | `endpoint/code.py` | Endpoint firmware: LoRa → NeoPixel effects |
 | `docs/eos_patch_guide.md` | Eos console patch configuration |
 | `wiring/gateway_wiring.html` | Interactive GPIO wiring diagram (gateway) |
 | `wiring/endpoint_wiring.html` | Interactive GPIO wiring diagram (endpoint) |
+| `settings.toml` | Sample settings file — copy to CIRCUITPY/settings.toml on each board |
+| `docs/phosphene_endpoint.gdtf.xml` | GDTF 1.1 fixture profile for ETC Eos import |

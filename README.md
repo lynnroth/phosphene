@@ -4,7 +4,7 @@ Wireless battery-powered theatrical lighting system for live performance.
 
 **ETC Eos** → Ethernet → **LoRa 915MHz** → battery-powered **NeoPixel endpoints**
 
-No DMX cables. No WiFi. No power drops to the stage.
+No DMX cables. No WiFi dependency — LoRa runs standalone. No power drops to the stage.
 
 ---
 
@@ -32,13 +32,15 @@ phosphene/
 ├── wiring/
 │   ├── gateway_wiring.html
 │   └── endpoint_wiring.html
-└── docs/
-    └── eos_patch_guide.md
+├── docs/
+│   ├── eos_patch_guide.md
+│   └── phosphene_endpoint.gdtf.xml   # GDTF fixture profile for Eos import
+└── settings.toml                     # Sample settings (copy to CIRCUITPY/settings.toml)
 ```
 
 ## How It Works
 
-The **gateway** sits at the side of the stage or in the booth. It receives sACN (E1.31) or ArtNet from Eos over Ethernet and translates DMX channel values into compact 12-byte LoRa packets. Each command is transmitted three times at 50ms intervals for redundancy. Protocol selection is via the `PROTOCOL` constant in the code (`"sacn"` or `"artnet"`). A WiFi access point provides a touch-friendly web UI for direct control and live monitoring.
+The **gateway** sits at the side of the stage or in the booth. It receives sACN (E1.31) or ArtNet from Eos over Ethernet and translates DMX channel values into compact 12-byte LoRa packets. Each command is transmitted three times at 50ms intervals for redundancy. Protocol (sACN or ArtNet) and all other options are set via `settings.toml` on the board — no code changes needed. Optionally, `DMX_WIFI_ENABLED = 1` makes the gateway also listen for DMX on the WiFi interface. A WiFi access point provides a touch-friendly web UI for direct control and live monitoring.
 
 The **endpoints** are battery-powered, fully wireless, and hidden in props or rigging. Each listens for LoRa packets addressed to its device ID (or the broadcast address 0), applies duplicate suppression, and runs the specified effect on its NeoPixel strip. When ACK mode is enabled on the gateway, endpoints send back a confirmation packet carrying RSSI and battery level.
 
@@ -153,26 +155,29 @@ Each device occupies 7 consecutive DMX channels:
 | +5 | Speed | 0–255 |
 | +6 | Reserved | — |
 
-Default patch:
+Default patch (used when no `PATCH_N` keys are set in `settings.toml`):
 - Device 0 (broadcast): address 50
-- Device 1: address 1
-- Device 2: address 8
+- Device 1: address 1 — Device 2: address 8 — Device 3: address 15 — Device 4: address 22 — Device 5: address 29
+
+Override any address by setting `PATCH_0` through `PATCH_5` in the gateway's `settings.toml`. Only devices with a `PATCH_N` key present are monitored.
 
 ## Setup
 
 ### Gateway
 1. Install CircuitPython 10.1.1 for **Adafruit Feather ESP32-S3 4MB/2MB PSRAM** from [circuitpython.org](https://circuitpython.org/board/adafruit_feather_esp32s3/)
 2. Install libraries into `/lib`: `adafruit_rfm9x`, `adafruit_wiznet5k`, `adafruit_bus_device`, `adafruit_httpserver`
-3. Edit `gateway/code.py`:
-   - Set `PROTOCOL` to `"sacn"` or `"artnet"`
-   - Set `STATIC_IP` to match your show network subnet (DHCP is not supported)
-   - Set universe (`SACN_UNIVERSE` or `ARTNET_UNIVERSE`) to match Eos output
-4. Copy `gateway/code.py` to the board as `code.py`
-5. Copy `gateway/ui.html` to `CIRCUITPY/gateway/ui.html` on the board
-6. Create `CIRCUITPY/settings.toml` on the board (see `settings.toml` in repo for template)
-7. In Eos: **Setup > Show > Output > Add sACN or ArtNet output** as appropriate
-   - sACN: Point universe to the gateway's IP
-   - ArtNet: No IP needed (uses broadcast)
+3. Copy `gateway/code.py` to the board as `code.py`
+4. Copy `gateway/ui.html` to `CIRCUITPY/gateway/ui.html` on the board
+5. Copy `settings.toml` from the repo to `CIRCUITPY/settings.toml` and edit the gateway section:
+   - Set `PROTOCOL` to `"sacn"` or `"artnet"` to match your Eos output
+   - Set `STATIC_IP` (or `USE_DHCP = 1`) to match your show network
+   - Set `SACN_UNIVERSE` or `ARTNET_UNIVERSE` to match Eos
+   - Set `PATCH_N` keys for your actual DMX patch addresses (see `docs/eos_patch_guide.md`)
+   - Set `DMX_WIFI_ENABLED = 1` if you want Eos to reach the gateway over WiFi instead of Ethernet
+6. In Eos: **Setup > Show > Output** — add sACN or ArtNet output
+   - sACN: set destination to the gateway's static IP, universe 1
+   - ArtNet: set Broadcast Mode to **Broadcast** (gateway does not respond to ArtPoll)
+7. Optional: import `docs/phosphene_endpoint.gdtf.xml` into Eos for named preset labels and colour picker (see `docs/eos_patch_guide.md`)
 
 ### Web UI
 
@@ -183,8 +188,12 @@ The web UI and Eos sACN are designed for independent use — both routes drive t
 ### Endpoints
 1. Install CircuitPython 10.1.1 for **Adafruit Feather ESP32-S3 4MB/2MB PSRAM**
 2. Install libraries into `/lib`: `adafruit_rfm9x`, `neopixel`, `adafruit_pixelbuf`, `adafruit_max1704x`, `adafruit_lc709203f`, `adafruit_bus_device`
-3. Edit `endpoint/code.py`: set `DEVICE_ID` (1 on first board, 2 on second), set `NUM_PIXELS`
-4. Copy `endpoint/code.py` to each board as `code.py`
+3. Copy `endpoint/code.py` to the board as `code.py`
+4. Copy `settings.toml` from the repo to `CIRCUITPY/settings.toml` and edit the endpoint section:
+   - Set `DEVICE_ID` to a unique value (1–5) per board
+   - Set `NUM_PIXELS` to the length of the NeoPixel strip
+   - Set `NEOPIXEL_PIN` to the GPIO pin connected to the strip data line
+   - Set `WIFI_AP_SSID` and `WIFI_AP_PASSWORD` to match the gateway's AP credentials
 
 ### LoRa Settings
 All three radios must use identical settings (defaults in code):
