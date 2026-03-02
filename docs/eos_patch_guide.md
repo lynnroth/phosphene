@@ -64,7 +64,35 @@ Set the Preset channel to any value in the 5-DMX range to select that effect.
 | 130–134 | Aurora | Northern lights, slow drift |
 | 135–139 | Wave Pastel | Soft rainbow sine pulse |
 
-## Eos Setup Steps
+## GDTF Fixture Profile (Recommended)
+
+A GDTF 1.1 fixture profile is provided at `docs/phosphene_endpoint.gdtf.xml`. It gives Eos named preset labels, a colour picker, dimmer fader, and named speed steps — no manual attribute palettes needed.
+
+### Building the .gdtf file
+
+**macOS / Linux:**
+```bash
+cp docs/phosphene_endpoint.gdtf.xml description.xml
+zip phosphene_endpoint.gdtf description.xml
+rm description.xml
+```
+
+**Windows:**
+1. Copy `phosphene_endpoint.gdtf.xml` and rename the copy to `description.xml`
+2. Right-click → Send to → Compressed (zipped) folder
+3. Rename the resulting `.zip` to `phosphene_endpoint.gdtf`
+
+### Importing into Eos
+
+1. Open **Fixture Type Editor** (Setup > Patch > Fixture Type Editor)
+2. Click **Import** and select `phosphene_endpoint.gdtf`
+   — or copy it directly to your Eos FixtureLibrary folder and restart the editor
+3. Patch each endpoint using the **Phosphene / Phosphene Endpoint / Standard (7ch)** type at the addresses in the table above
+4. Eos will automatically assign Dimmer, Color (RGB), Preset (FX), and Speed attributes
+
+## Manual Eos Setup Steps
+
+If not using the GDTF profile, patch manually:
 
 1. **Enable sACN output**: Setup > Show > Output > Add sACN Output
 2. **Set destination IP**: the gateway's static IP (default `192.168.1.50`)

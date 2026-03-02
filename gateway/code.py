@@ -185,12 +185,9 @@ PIXEL_COLORS = {
 # --- Device Patch Map ---
 # Maps Device ID -> DMX start address (1-based, as shown in Eos patch)
 DEVICE_PATCH = {
-    0: 50,   # Broadcast "all devices" - address 50
-    1: 1,    # Device 1 - address 1
-    2: 8,    # Device 2 - address 8
-    3: 15,   # Device 3 - address 15
-    4: 22,   # Device 4 - address 22
-    5: 29,   # Device 5 - address 29
+    0: 216,   # Broadcast "all devices" - address 50
+    1: 201,    # Device 1 - address 1
+    2: 208    # Device 2 - address 8
 }
 
 # =============================================================================

@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Phosphene Endpoint — GDTF fixture profile
+  GDTF DataVersion 1.1 — compatible with ETC Eos 2.9+ (File > Import > Fixture Type)
+
+  TO CREATE THE .gdtf FILE:
+    1. Rename this file to:  description.xml
+    2. Zip it (the file must be at the root of the archive, not inside a folder)
+    3. Rename the .zip to:   phosphene_endpoint.gdtf
+    4. Import into Eos:      Fixture Type Editor > import  (or copy to FixtureLibrary folder)
+
+  macOS/Linux:  cp phosphene_endpoint.gdtf.xml description.xml && zip phosphene_endpoint.gdtf description.xml
+  Windows:      Rename file to description.xml, right-click > Send to > Compressed folder,
+                rename the resulting .zip to phosphene_endpoint.gdtf
+-->
+<GDTF DataVersion="1.1">
+  <FixtureType
+    Name="Phosphene Endpoint"
+    ShortName="Phosphene"
+    LongName="Phosphene Wireless LED Endpoint"
+    Manufacturer="Phosphene"
+    Description="Battery-powered wireless LoRa NeoPixel endpoint. 7ch: Preset, Intensity, R, G, B, Speed, Reserved."
+    FixtureTypeID="{6a3f9b2e-1c4d-4e8f-a0b5-9d7e2f3a1c8d}"
+    Thumbnail=""
+    RefFT="">
+
+    <AttributeDefinitions>
+
+      <ActivationGroups>
+        <ActivationGroup Name="ColorRGB"/>
+      </ActivationGroups>
+
+      <Features>
+        <FeatureGroup Name="Dimmer" Pretty="Dimmer">
+          <Feature Name="Dimmer"/>
+        </FeatureGroup>
+        <FeatureGroup Name="Color" Pretty="Color">
+          <Feature Name="Color"/>
+        </FeatureGroup>
+        <FeatureGroup Name="Effects" Pretty="Effects">
+          <Feature Name="Effects"/>
+        </FeatureGroup>
+        <FeatureGroup Name="Control" Pretty="Control">
+          <Feature Name="Control"/>
+        </FeatureGroup>
+      </Features>
+
+      <Attributes>
+        <!-- Intensity — maps to Eos dimmer fader -->
+        <Attribute Name="Dimmer"      Pretty="Dimmer"  ActivationGroup=""        Feature="Dimmer.Dimmer"   PhysicalUnit="LuminousIntensity" Color="0.3127,0.3290"/>
+        <!-- RGB color mixing — maps to Eos color picker -->
+        <Attribute Name="ColorAdd_R"  Pretty="R"       ActivationGroup="ColorRGB" Feature="Color.Color"    PhysicalUnit="ColorComponent"   Color="0.7347,0.2653"/>
+        <Attribute Name="ColorAdd_G"  Pretty="G"       ActivationGroup="ColorRGB" Feature="Color.Color"    PhysicalUnit="ColorComponent"   Color="0.1596,0.8404"/>
+        <Attribute Name="ColorAdd_B"  Pretty="B"       ActivationGroup="ColorRGB" Feature="Color.Color"    PhysicalUnit="ColorComponent"   Color="0.1241,0.0578"/>
+        <!-- Preset selector — discrete snap, named ChannelSets for each effect -->
+        <Attribute Name="Effects"     Pretty="FX"      ActivationGroup=""        Feature="Effects.Effects" PhysicalUnit="None"             Color=""/>
+        <!-- Speed control — continuous 0–100% -->
+        <Attribute Name="EffectsRate" Pretty="FX Rate" ActivationGroup=""        Feature="Control.Control" PhysicalUnit="None"             Color=""/>
+        <!-- Reserved channel — hidden from operators -->
+        <Attribute Name="NoFeature"   Pretty="—"       ActivationGroup=""        Feature="Control.Control" PhysicalUnit="None"             Color=""/>
+      </Attributes>
+
+    </AttributeDefinitions>
+
+    <Wheels/>
+    <PhysicalDescriptions/>
+    <Models/>
+
+    <Geometries>
+      <Geometry Name="Body" Model="" Position="{1,0,0,0}{0,1,0,0}{0,0,1,0}{0,0,0,1}">
+        <Geometry Name="Beam" Model="" Position="{1,0,0,0}{0,1,0,0}{0,0,1,0}{0,0,0.1,1}">
+          <Beam BeamAngle="120" BeamType="Wash" CRI="80" EmitterSpectrum=""
+                FieldAngle="120" GlassConeFactor="0.2" LuminousFlux="300"
+                Name="Beam" PowerConsumption="5"
+                Position="{1,0,0,0}{0,1,0,0}{0,0,1,0}{0,0,0,1}"
+                RectangleRatio="1" ThrowRatio="1"/>
+        </Geometry>
+      </Geometry>
+    </Geometries>
+
+    <DMXModes>
+      <DMXMode Name="Standard (7ch)" Geometry="Body">
+        <DMXChannels>
+
+          <!-- ── Channel 1: Preset (effect selector) ─────────────────────────
+               Snap=Yes: preset changes are instant, never interpolated.
+               Default 20 = Solid (safe starting state).
+               Use the centre of each 5-DMX band (e.g. 2, 7, 12 ...) when cueing
+               to avoid ambiguity at band edges.                               -->
+          <DMXChannel DMXBreak="1" Default="20/1" Geometry="Beam" Highlight="20/1"
+                      InitialFunction="Effects.Effects.Preset" Offset="1">
+            <LogicalChannel Attribute="Effects" DMXChangeTimeLimit="0"
+                            Master="None" MibFade="0" Snap="Yes">
+              <ChannelFunction Attribute="Effects" CustomName="Preset"
+                               DMXFrom="0/1" Default="20/1" Max="255/1" Min="0/1"
+                               Name="Preset" PhysicalFrom="0" PhysicalTo="1"
+                               RealFade="0" RealAcceleration="0" WheelSlotIndex="0">
+                <ChannelSet DMXFrom="0/1"   Name="Blackout"      PhysicalFrom="0.000" PhysicalTo="0.019"/>
+                <ChannelSet DMXFrom="5/1"   Name="Sparkle"       PhysicalFrom="0.020" PhysicalTo="0.038"/>
+                <ChannelSet DMXFrom="10/1"  Name="Chase"         PhysicalFrom="0.039" PhysicalTo="0.057"/>
+                <ChannelSet DMXFrom="15/1"  Name="Fade"          PhysicalFrom="0.059" PhysicalTo="0.077"/>
+                <ChannelSet DMXFrom="20/1"  Name="Solid"         PhysicalFrom="0.078" PhysicalTo="0.097"/>
+                <ChannelSet DMXFrom="25/1"  Name="Twinkle"       PhysicalFrom="0.098" PhysicalTo="0.116"/>
+                <ChannelSet DMXFrom="30/1"  Name="Strobe"        PhysicalFrom="0.118" PhysicalTo="0.136"/>
+                <ChannelSet DMXFrom="35/1"  Name="Meteor"        PhysicalFrom="0.137" PhysicalTo="0.155"/>
+                <ChannelSet DMXFrom="40/1"  Name="Fire"          PhysicalFrom="0.157" PhysicalTo="0.175"/>
+                <ChannelSet DMXFrom="45/1"  Name="Rainbow"       PhysicalFrom="0.176" PhysicalTo="0.194"/>
+                <ChannelSet DMXFrom="50/1"  Name="Lightning"     PhysicalFrom="0.196" PhysicalTo="0.214"/>
+                <ChannelSet DMXFrom="55/1"  Name="Marquee"       PhysicalFrom="0.216" PhysicalTo="0.233"/>
+                <ChannelSet DMXFrom="60/1"  Name="Candle"        PhysicalFrom="0.235" PhysicalTo="0.253"/>
+                <ChannelSet DMXFrom="65/1"  Name="Color Wipe"    PhysicalFrom="0.255" PhysicalTo="0.273"/>
+                <ChannelSet DMXFrom="70/1"  Name="Heartbeat"     PhysicalFrom="0.275" PhysicalTo="0.292"/>
+                <ChannelSet DMXFrom="75/1"  Name="Alarm"         PhysicalFrom="0.294" PhysicalTo="0.312"/>
+                <ChannelSet DMXFrom="80/1"  Name="Comet"         PhysicalFrom="0.314" PhysicalTo="0.331"/>
+                <ChannelSet DMXFrom="85/1"  Name="Ripple"        PhysicalFrom="0.333" PhysicalTo="0.351"/>
+                <ChannelSet DMXFrom="90/1"  Name="Scanner"       PhysicalFrom="0.353" PhysicalTo="0.371"/>
+                <ChannelSet DMXFrom="95/1"  Name="Bubbles"       PhysicalFrom="0.373" PhysicalTo="0.390"/>
+                <ChannelSet DMXFrom="100/1" Name="Campfire"      PhysicalFrom="0.392" PhysicalTo="0.410"/>
+                <ChannelSet DMXFrom="105/1" Name="Confetti"      PhysicalFrom="0.412" PhysicalTo="0.429"/>
+                <ChannelSet DMXFrom="110/1" Name="Wave"          PhysicalFrom="0.431" PhysicalTo="0.449"/>
+                <ChannelSet DMXFrom="115/1" Name="Flicker"       PhysicalFrom="0.451" PhysicalTo="0.469"/>
+                <ChannelSet DMXFrom="120/1" Name="Theater Chase" PhysicalFrom="0.471" PhysicalTo="0.488"/>
+                <ChannelSet DMXFrom="125/1" Name="Rainbow Chase" PhysicalFrom="0.490" PhysicalTo="0.508"/>
+                <ChannelSet DMXFrom="130/1" Name="Aurora"        PhysicalFrom="0.510" PhysicalTo="0.527"/>
+                <ChannelSet DMXFrom="135/1" Name="Wave Pastel"   PhysicalFrom="0.529" PhysicalTo="1.000"/>
+              </ChannelFunction>
+            </LogicalChannel>
+          </DMXChannel>
+
+          <!-- ── Channel 2: Intensity (Dimmer) ────────────────────────────── -->
+          <DMXChannel DMXBreak="1" Default="0/1" Geometry="Beam" Highlight="255/1"
+                      InitialFunction="Dimmer.Dimmer.Dimmer" Offset="2">
+            <LogicalChannel Attribute="Dimmer" DMXChangeTimeLimit="0"
+                            Master="None" MibFade="0" Snap="No">
+              <ChannelFunction Attribute="Dimmer" CustomName="" DMXFrom="0/1" Default="0/1"
+                               Max="255/1" Min="0/1" Name="Dimmer"
+                               PhysicalFrom="0" PhysicalTo="1"
+                               RealFade="0" RealAcceleration="0" WheelSlotIndex="0"/>
+            </LogicalChannel>
+          </DMXChannel>
+
+          <!-- ── Channel 3: Red ────────────────────────────────────────────── -->
+          <DMXChannel DMXBreak="1" Default="255/1" Geometry="Beam" Highlight="255/1"
+                      InitialFunction="ColorAdd_R.ColorAdd_R.ColorAdd_R" Offset="3">
+            <LogicalChannel Attribute="ColorAdd_R" DMXChangeTimeLimit="0"
+                            Master="None" MibFade="0" Snap="No">
+              <ChannelFunction Attribute="ColorAdd_R" CustomName="" DMXFrom="0/1" Default="255/1"
+                               Max="255/1" Min="0/1" Name="ColorAdd_R"
+                               PhysicalFrom="0" PhysicalTo="1"
+                               RealFade="0" RealAcceleration="0" WheelSlotIndex="0"/>
+            </LogicalChannel>
+          </DMXChannel>
+
+          <!-- ── Channel 4: Green ──────────────────────────────────────────── -->
+          <DMXChannel DMXBreak="1" Default="255/1" Geometry="Beam" Highlight="255/1"
+                      InitialFunction="ColorAdd_G.ColorAdd_G.ColorAdd_G" Offset="4">
+            <LogicalChannel Attribute="ColorAdd_G" DMXChangeTimeLimit="0"
+                            Master="None" MibFade="0" Snap="No">
+              <ChannelFunction Attribute="ColorAdd_G" CustomName="" DMXFrom="0/1" Default="255/1"
+                               Max="255/1" Min="0/1" Name="ColorAdd_G"
+                               PhysicalFrom="0" PhysicalTo="1"
+                               RealFade="0" RealAcceleration="0" WheelSlotIndex="0"/>
+            </LogicalChannel>
+          </DMXChannel>
+
+          <!-- ── Channel 5: Blue ───────────────────────────────────────────── -->
+          <DMXChannel DMXBreak="1" Default="255/1" Geometry="Beam" Highlight="255/1"
+                      InitialFunction="ColorAdd_B.ColorAdd_B.ColorAdd_B" Offset="5">
+            <LogicalChannel Attribute="ColorAdd_B" DMXChangeTimeLimit="0"
+                            Master="None" MibFade="0" Snap="No">
+              <ChannelFunction Attribute="ColorAdd_B" CustomName="" DMXFrom="0/1" Default="255/1"
+                               Max="255/1" Min="0/1" Name="ColorAdd_B"
+                               PhysicalFrom="0" PhysicalTo="1"
+                               RealFade="0" RealAcceleration="0" WheelSlotIndex="0"/>
+            </LogicalChannel>
+          </DMXChannel>
+
+          <!-- ── Channel 6: Speed ──────────────────────────────────────────── -->
+          <DMXChannel DMXBreak="1" Default="128/1" Geometry="Beam" Highlight="128/1"
+                      InitialFunction="EffectsRate.EffectsRate.Speed" Offset="6">
+            <LogicalChannel Attribute="EffectsRate" DMXChangeTimeLimit="0"
+                            Master="None" MibFade="0" Snap="No">
+              <ChannelFunction Attribute="EffectsRate" CustomName="Speed"
+                               DMXFrom="0/1" Default="128/1" Max="255/1" Min="0/1"
+                               Name="Speed" PhysicalFrom="0" PhysicalTo="1"
+                               RealFade="0" RealAcceleration="0" WheelSlotIndex="0">
+                <ChannelSet DMXFrom="0/1"   Name="Slowest" PhysicalFrom="0.00" PhysicalTo="0.24"/>
+                <ChannelSet DMXFrom="64/1"  Name="Slow"    PhysicalFrom="0.25" PhysicalTo="0.49"/>
+                <ChannelSet DMXFrom="128/1" Name="Medium"  PhysicalFrom="0.50" PhysicalTo="0.74"/>
+                <ChannelSet DMXFrom="192/1" Name="Fast"    PhysicalFrom="0.75" PhysicalTo="0.93"/>
+                <ChannelSet DMXFrom="240/1" Name="Fastest" PhysicalFrom="0.94" PhysicalTo="1.00"/>
+              </ChannelFunction>
+            </LogicalChannel>
+          </DMXChannel>
+
+          <!-- ── Channel 7: Reserved (future use) ─────────────────────────── -->
+          <DMXChannel DMXBreak="1" Default="0/1" Geometry="Beam" Highlight="0/1"
+                      InitialFunction="NoFeature" Offset="7">
+            <LogicalChannel Attribute="NoFeature" DMXChangeTimeLimit="0"
+                            Master="None" MibFade="0" Snap="No">
+              <ChannelFunction Attribute="NoFeature" CustomName="Reserved"
+                               DMXFrom="0/1" Default="0/1" Max="255/1" Min="0/1"
+                               Name="Reserved" PhysicalFrom="0" PhysicalTo="1"
+                               RealFade="0" RealAcceleration="0" WheelSlotIndex="0"/>
+            </LogicalChannel>
+          </DMXChannel>
+
+        </DMXChannels>
+        <Relations/>
+        <FTMacros/>
+      </DMXMode>
+    </DMXModes>
+
+    <Revisions>
+      <Revision Date="20260302T000000" Description="Initial release"
+                ModifiedBy="Phosphene" UserName=""/>
+    </Revisions>
+    <FTPresets/>
+    <Protocols/>
+    <Mappings/>
+    <Macros/>
+  </FixtureType>
+</GDTF>
