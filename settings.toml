@@ -31,6 +31,11 @@ WIFI_SIM_NETWORK = "ap"
 # --- Protocol: "sacn" or "artnet" ---
 PROTOCOL = "sacn"
 
+# --- WiFi DMX: also listen for sACN/ArtNet on the WiFi interface ---
+# Useful when Eos is on the same WiFi network and no Ethernet cable is needed.
+# 1 = enabled, 0 = disabled (default)
+DMX_WIFI_ENABLED = 0
+
 # --- Ethernet (used for sACN/ArtNet from Eos) ---
 # USE_DHCP: 1 = DHCP, 0 = static IP
 USE_DHCP    = 0

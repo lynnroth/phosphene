@@ -129,6 +129,11 @@ WIFI_SIM_PORT    = 5569   # Must match WIFI_SIM_PORT on all endpoints
 # "sacn" for sACN (E1.31) or "artnet" for ArtNet — must match Eos output type
 PROTOCOL = os.getenv("PROTOCOL", "sacn")
 
+# --- WiFi DMX ---
+# DMX_WIFI_ENABLED: set "1" to also listen for sACN/ArtNet on the WiFi interface.
+# Useful when Eos is on the same WiFi network and no Ethernet cable is available.
+DMX_WIFI_ENABLED = int(os.getenv("DMX_WIFI_ENABLED", 0)) != 0
+
 # --- Ethernet Network ---
 # USE_DHCP: set "1" in settings.toml to use DHCP instead of static IP
 USE_DHCP = int(os.getenv("USE_DHCP", 0)) != 0
@@ -582,6 +587,23 @@ except Exception as e:
     ack_udp = None
     log(f"WARNING: ACK UDP socket failed: {e}")
 
+wifi_dmx_udp = None
+if DMX_WIFI_ENABLED:
+    _dmx_port = SACN_PORT if PROTOCOL == "sacn" else ARTNET_PORT
+    try:
+        wifi_dmx_udp = ap_pool.socket(ap_pool.AF_INET, ap_pool.SOCK_DGRAM)
+        if PROTOCOL == "artnet":
+            try:
+                wifi_dmx_udp.setsockopt(ap_pool.SOL_SOCKET, ap_pool.SO_BROADCAST, 1)
+            except (AttributeError, OSError):
+                pass
+        wifi_dmx_udp.bind(("0.0.0.0", _dmx_port))
+        wifi_dmx_udp.settimeout(0)
+        log(f"WiFi DMX listener on UDP :{_dmx_port} ({PROTOCOL.upper()})")
+    except Exception as e:
+        wifi_dmx_udp = None
+        log(f"WARNING: WiFi DMX socket failed: {e}")
+
 log("Starting HTTP server on port 8080...")
 try:
     server.start("0.0.0.0", port=8080)
@@ -834,12 +856,25 @@ while True:
                 still_pending.append((send_at, packet))
         pending_sends[:] = still_pending
 
-    # --- Receive DMX from Eos ---
+    # --- Receive DMX from Eos (Ethernet) ---
     if udp is not None:
         try:
             raw, addr = udp.recvfrom(638)
             if raw:
                 log(f"[UDP RX] {len(raw)}b from {addr[0]}")
+                payload = parse_func(raw)
+                if payload is not None:
+                    dmx_data[:len(payload)] = payload
+                    check_device_changes()
+        except OSError:
+            pass   # No packet available in non-blocking mode
+
+    # --- Receive DMX from Eos (WiFi) ---
+    if wifi_dmx_udp is not None:
+        try:
+            raw, addr = wifi_dmx_udp.recvfrom(638)
+            if raw:
+                log(f"[UDP RX WiFi] {len(raw)}b from {addr[0]}")
                 payload = parse_func(raw)
                 if payload is not None:
                     dmx_data[:len(payload)] = payload
