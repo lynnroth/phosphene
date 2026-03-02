@@ -244,8 +244,8 @@ E131_PACKET_IDENTIFIER = b"ASC-E1.17\x00\x00\x00"
 # =============================================================================
 # ARTNET PROTOCOL CONSTANTS
 # =============================================================================
-ARTNET_IDENTIFIER = b"ArtNet\x00"
-ARTDMX_OPCODE     = 0x5200
+ARTNET_IDENTIFIER = b"Art-Net\x00"   # 8 bytes — hyphen is required by spec
+ARTDMX_OPCODE     = 0x5000           # ArtDmx opcode; stored little-endian in packet
 MIN_ARTNET_SIZE   = 18
 
 # =============================================================================
@@ -641,36 +641,41 @@ def parse_artnet(data):
     Returns the DMX payload bytes if valid, or None if invalid/wrong universe.
     """
     if len(data) < MIN_ARTNET_SIZE:
+        log(f"[ARTNET] reject: too short ({len(data)}b)")
         return None
-    
-    # Check ArtNet identifier
+
+    # Check ArtNet identifier ("Art-Net\0", 8 bytes)
     if data[0:8] != ARTNET_IDENTIFIER:
+        log(f"[ARTNET] reject: bad id {bytes(data[0:8])!r}")
         return None
-    
-    # Check opcode (must be ArtDMX = 0x5200)
-    opcode = struct.unpack_from(">H", data, 8)[0]
+
+    # Check opcode — ArtDmx = 0x5000, stored little-endian
+    opcode = struct.unpack_from("<H", data, 8)[0]
     if opcode != ARTDMX_OPCODE:
+        log(f"[ARTNET] reject: opcode {opcode:#06x} (want {ARTDMX_OPCODE:#06x})")
         return None
-    
+
     # Check version (must be >= 14)
     version = struct.unpack_from(">H", data, 10)[0]
     if version < 14:
+        log(f"[ARTNET] reject: version {version} < 14")
         return None
-    
+
     # Extract universe (Net + SubUni)
     net = data[15] & 0x7F
     subuni = data[14] & 0x0F
     universe = (net << 4) | subuni
-    
     if universe != ARTNET_UNIVERSE:
+        log(f"[ARTNET] reject: universe {universe} (want {ARTNET_UNIVERSE})")
         return None
-    
-    # Get DMX data length
+
+    # Get DMX data length (big-endian per spec)
     dmx_length = struct.unpack_from(">H", data, 16)[0]
     if dmx_length < 1 or dmx_length > 512:
+        log(f"[ARTNET] reject: dmx_length {dmx_length}")
         return None
-    
-    # Return DMX data (starts at offset 18)
+
+    log(f"[ARTNET] ok: {dmx_length}b universe={universe}")
     return data[18:18 + dmx_length]
 
 
@@ -834,6 +839,7 @@ while True:
         try:
             raw, addr = udp.recvfrom(638)
             if raw:
+                log(f"[UDP RX] {len(raw)}b from {addr[0]}")
                 payload = parse_func(raw)
                 if payload is not None:
                     dmx_data[:len(payload)] = payload
