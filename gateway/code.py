@@ -249,9 +249,11 @@ E131_PACKET_IDENTIFIER = b"ASC-E1.17\x00\x00\x00"
 # =============================================================================
 # ARTNET PROTOCOL CONSTANTS
 # =============================================================================
-ARTNET_IDENTIFIER = b"Art-Net\x00"   # 8 bytes — hyphen is required by spec
-ARTDMX_OPCODE     = 0x5000           # ArtDmx opcode; stored little-endian in packet
-MIN_ARTNET_SIZE   = 18
+ARTNET_IDENTIFIER    = b"Art-Net\x00"   # 8 bytes — hyphen is required by spec
+ARTDMX_OPCODE        = 0x5000           # ArtDmx opcode; stored little-endian in packet
+ARTPOLL_OPCODE       = 0x2000           # ArtPoll — discovery broadcast from controller
+ARTPOLLREPLY_OPCODE  = 0x2100           # ArtPollReply — our response to ArtPoll
+MIN_ARTNET_SIZE      = 18
 
 # =============================================================================
 # HARDWARE INIT
@@ -700,6 +702,63 @@ def parse_artnet(data):
 
 
 # =============================================================================
+# ARTNET DISCOVERY (ArtPoll / ArtPollReply)
+# =============================================================================
+
+def _build_artpoll_reply(ip_str):
+    """Build a 239-byte ArtPollReply packet advertising this gateway."""
+    pkt = bytearray(239)   # zero-initialised
+    pkt[0:8] = ARTNET_IDENTIFIER
+    pkt[8]   = 0x00   # OpPollReply 0x2100, little-endian low byte
+    pkt[9]   = 0x21   # OpPollReply high byte
+    ip_bytes = bytes(int(x) for x in ip_str.split("."))
+    pkt[10:14] = ip_bytes
+    pkt[14]  = 0x36   # Port 6454 low byte
+    pkt[15]  = 0x19   # Port 6454 high byte
+    pkt[16]  = 0x00   # VersInfoH
+    pkt[17]  = 0x01   # VersInfo
+    pkt[20]  = 0xFF   # OemHi — 0xFF = not registered
+    pkt[21]  = 0xFF   # Oem
+    short    = b"Phosphene"
+    pkt[26:26 + len(short)] = short
+    long_n   = b"Phosphene LoRa Gateway"
+    pkt[44:44 + len(long_n)] = long_n
+    report   = b"#0001 [0000] OK"
+    pkt[108:108 + len(report)] = report
+    pkt[173] = 1      # NumPorts = 1
+    pkt[174] = 0x80   # PortTypes[0]: output from Art-Net to DMX
+    pkt[182] = 0x80   # GoodOutput[0]: transmitting data
+    pkt[190] = ARTNET_UNIVERSE & 0x0F  # SwOut[0]: universe
+    pkt[200] = 0x00   # Style: StNode
+    pkt[201:207] = MAC_ADDRESS
+    pkt[207:211] = ip_bytes
+    pkt[211] = 1      # BindIndex
+    pkt[212] = 0x08 if USE_DHCP else 0x00  # Status2: DHCP flag
+    return bytes(pkt)
+
+
+def _reply_artpoll(sock, from_addr, our_ip_str):
+    """Send ArtPollReply unicast back to whoever polled us."""
+    try:
+        sock.sendto(_build_artpoll_reply(our_ip_str), (from_addr, ARTNET_PORT))
+        log(f"[ARTNET] ArtPollReply -> {from_addr}")
+    except OSError as e:
+        log(f"[ARTNET] ArtPollReply failed: {e}")
+
+
+def _handle_dmx_packet(raw, addr, sock, our_ip_str):
+    """Dispatch a raw UDP packet: reply to ArtPoll or parse as DMX data."""
+    if PROTOCOL == "artnet" and len(raw) >= 10 and raw[0:8] == ARTNET_IDENTIFIER:
+        if struct.unpack_from("<H", raw, 8)[0] == ARTPOLL_OPCODE:
+            _reply_artpoll(sock, addr[0], our_ip_str)
+            return
+    payload = parse_func(raw)
+    if payload is not None:
+        dmx_data[:len(payload)] = payload
+        check_device_changes()
+
+
+# =============================================================================
 # LORA PACKET BUILDING
 # =============================================================================
 
@@ -859,11 +918,7 @@ while True:
         try:
             raw, addr = udp.recvfrom(638)
             if raw:
-                #log(f"[UDP RX] {len(raw)}b from {addr[0]}")
-                payload = parse_func(raw)
-                if payload is not None:
-                    dmx_data[:len(payload)] = payload
-                    check_device_changes()
+                _handle_dmx_packet(raw, addr, udp, _eth_ip_str or "0.0.0.0")
         except OSError:
             pass   # No packet available in non-blocking mode
 
@@ -872,11 +927,8 @@ while True:
         try:
             raw, addr = wifi_dmx_udp.recvfrom(638)
             if raw:
-                #log(f"[UDP RX WiFi] {len(raw)}b from {addr[0]}")
-                payload = parse_func(raw)
-                if payload is not None:
-                    dmx_data[:len(payload)] = payload
-                    check_device_changes()
+                _wifi_ip = sta_ip or ap_ip
+                _handle_dmx_packet(raw, addr, wifi_dmx_udp, _wifi_ip)
         except OSError:
             pass   # No packet available in non-blocking mode
 
