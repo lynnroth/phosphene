@@ -662,20 +662,18 @@ def parse_artnet(data):
     Parse an ArtNet UDP packet.
     Returns the DMX payload bytes if valid, or None if invalid/wrong universe.
     """
-    if len(data) < MIN_ARTNET_SIZE:
-        log(f"[ARTNET] reject: too short ({len(data)}b)")
+    # Silently drop anything that isn't an ArtNet packet or isn't ArtDmx.
+    # ArtPoll (14 bytes), ArtPollReply, and other control opcodes all arrive
+    # on the same port — they are expected and should not generate log noise.
+    if len(data) < 8 or data[0:8] != ARTNET_IDENTIFIER:
         return None
-
-    # Check ArtNet identifier ("Art-Net\0", 8 bytes)
-    if data[0:8] != ARTNET_IDENTIFIER:
-        log(f"[ARTNET] reject: bad id {bytes(data[0:8])!r}")
+    if len(data) < MIN_ARTNET_SIZE:
         return None
 
     # Check opcode — ArtDmx = 0x5000, stored little-endian
     opcode = struct.unpack_from("<H", data, 8)[0]
     if opcode != ARTDMX_OPCODE:
-        log(f"[ARTNET] reject: opcode {opcode:#06x} (want {ARTDMX_OPCODE:#06x})")
-        return None
+        return None  # ArtPoll, ArtPollReply, ArtSync, etc. — ignore silently
 
     # Check version (must be >= 14)
     version = struct.unpack_from(">H", data, 10)[0]
