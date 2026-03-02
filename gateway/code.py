@@ -898,6 +898,12 @@ while True:
             log(f"        http://{sta_ip}:8080")
         if _eth_ip_str:
             log(f"        http://{_eth_ip_str}:8080 (eth)")
+        if eth is None:
+            log("[ETH] no chip — check SPI wiring")
+        elif not _eth_configured:
+            log(f"[ETH] waiting for link (link_status={eth.link_status})")
+        elif udp is None:
+            log("[ETH] configured but UDP socket is None — check logs above")
 
     loop_tick += 1
 
