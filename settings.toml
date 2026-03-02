@@ -43,6 +43,17 @@ DNS_SERVER  = "8.8.8.8"
 SACN_UNIVERSE   = 1
 ARTNET_UNIVERSE = 1
 
+# --- Device Patch Map ---
+# DMX start address for each device (1-based, as shown in Eos patch).
+# Only include devices you have actually patched. Omit any device to skip it.
+# If no PATCH_N keys are present, defaults are used (0:50, 1:1, 2:8, 3:15, 4:22, 5:29).
+PATCH_0 = 50    # Broadcast (all devices)
+PATCH_1 = 1     # Endpoint 1
+PATCH_2 = 8     # Endpoint 2
+PATCH_3 = 15    # Endpoint 3
+PATCH_4 = 22    # Endpoint 4
+PATCH_5 = 29    # Endpoint 5
+
 # =============================================================================
 # ENDPOINT board — copy everything in this section (one settings.toml per board)
 # =============================================================================

@@ -184,10 +184,20 @@ PIXEL_COLORS = {
 
 # --- Device Patch Map ---
 # Maps Device ID -> DMX start address (1-based, as shown in Eos patch)
-DEVICE_PATCH = {
-    0: 216,   # Broadcast "all devices" - address 50
-    1: 201,    # Device 1 - address 1
-    2: 208    # Device 2 - address 8
+# Override in settings.toml with PATCH_0 through PATCH_5.
+# If no PATCH_N keys are present, the built-in defaults below are used.
+_patch_overrides = {}
+for _dev_id in range(6):
+    _v = os.getenv(f"PATCH_{_dev_id}")
+    if _v is not None:
+        _patch_overrides[_dev_id] = int(_v)
+DEVICE_PATCH = _patch_overrides if _patch_overrides else {
+    0: 50,   # Broadcast "all devices"
+    1: 1,    # Device 1
+    2: 8,    # Device 2
+    3: 15,   # Device 3
+    4: 22,   # Device 4
+    5: 29,   # Device 5
 }
 
 # =============================================================================
