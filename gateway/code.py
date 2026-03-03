@@ -140,7 +140,17 @@ USE_DHCP = int(os.getenv("USE_DHCP", 0)) != 0
 
 def _parse_ip(key, default):
     s = os.getenv(key, default)
-    return tuple(int(x) for x in s.split("."))
+    try:
+        parts = s.split(".")
+        if len(parts) != 4:
+            raise ValueError(f"expected 4 octets, got {len(parts)}")
+        ip = tuple(int(x) for x in parts)
+        if not all(0 <= x <= 255 for x in ip):
+            raise ValueError(f"octet out of range: {ip}")
+        return ip
+    except (ValueError, IndexError) as e:
+        log(f"WARNING: Invalid IP '{s}' for {key}, using default {default}: {e}")
+        return tuple(int(x) for x in default.split("."))
 
 STATIC_IP   = _parse_ip("STATIC_IP",   "192.168.1.50")
 SUBNET_MASK = _parse_ip("SUBNET_MASK", "255.255.255.0")
