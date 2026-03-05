@@ -1,9 +1,58 @@
 # =============================================================================
 # THEATER LORA ENDPOINT - code.py
 # =============================================================================
-# Runs on: Adafruit ESP32-S3 Feather (#5477)
-#          + Adafruit RFM95W Breakout 915MHz (#3072)
-#          + Adafruit bq25185 Charger/Booster (#6106)
+# Runs on: Adafruit ESP32-S3 Feather (#5477)             <- 4MB flash, 2MB PSRAM, USB-C
+#          + Adafruit RFM95W Breakout 915MHz (#3072)      <- LoRa radio, wired via primary SPI
+#          + Adafruit bq25185 Charger/Booster (#6106)     <- LiPo charge + regulated 5V boost
+# Battery powered, drives NeoPixel strip, receives LoRa preset commands
+#
+# HARDWARE CONNECTIONS:
+#
+#   RFM95W Breakout (#3072) — Primary SPI bus:
+#     VIN  -> 3.3V  (Feather 3V3 pin)
+#     GND  -> GND
+#     SCK  -> SCK   (board.SCK  — primary SPI clock)
+#     MOSI -> MOSI  (board.MOSI — primary SPI TX)
+#     MISO -> MISO  (board.MISO — primary SPI RX)
+#     CS   -> D9    (board.D9)
+#     RST  -> D10   (board.D10)
+#     G0   -> D11   (board.D11  — DIO0/IRQ)
+#     Antenna: spring antenna (#4269) to uFL connector
+#
+#   bq25185 Charger/Booster (#6106) — power only, no data connection to Feather:
+#     BATT port (JST-PH) -> LiPo battery
+#     USB-C              -> charge input (charge from backstage, bq25185 port only)
+#     5V output +        -> NeoPixel 5V rail
+#     5V output −        -> GND (common with Feather GND)
+#     (Feather is powered separately via its own JST port from the same LiPo)
+#
+#   NeoPixels:
+#     DATA -> D5    (board.D5 — change NEOPIXEL_PIN in settings.toml if needed)
+#     5V   -> 5V output of bq25185
+#     GND  -> GND (common ground)
+#
+#   POWER NOTE: Both the Feather JST and the bq25185 BATT input connect to the
+#   same LiPo cell. Charge via bq25185 USB-C only during use. Use Feather USB-C
+#   for programming only. Do not connect both USB-C ports simultaneously.
+#
+# SETUP:
+#   1. Install CircuitPython 10.1.1 for "Adafruit Feather ESP32-S3 4MB Flash 2MB PSRAM"
+#      from https://circuitpython.org/board/adafruit_feather_esp32s3/
+#   2. Install these libraries into /lib on the board:
+#        adafruit_rfm9x.mpy
+#        adafruit_pixelbuf.mpy
+#        neopixel.mpy
+#        adafruit_max1704x.mpy  (or adafruit_lc709203f.mpy for alternative battery monitor)
+#   3. Copy endpoint/ folder to CIRCUITPY (code.py, config.py, hardware.py, effects/)
+#   4. Create CIRCUITPY/settings.toml with DEVICE_ID, NUM_PIXELS, etc.
+#
+# PRESETS (0-27):
+#    0:Blackout  1:Sparkle    2:Chase      3:Fade       4:Solid
+#    5:Twinkle   6:Strobe     7:Comet      8:Fire       9:Rainbow
+#   10:Lightning 11:Marquee   12:Candle    13:ColorWipe 14:Heartbeat
+#   15:Alarm     16:Comet     17:Ripple    18:Scanner   19:Bubbles
+#   20:Campfire  21:Confetti  22:Wave      23:Flicker   24:TheaterChase
+#   25:RainbowChase 26:Aurora  27:WavePastel
 # =============================================================================
 
 import time

@@ -18,9 +18,10 @@ Phosphene is a wireless battery-powered theatrical lighting system. An ETC Eos l
 There is no build system. Development workflow:
 
 1. Connect the ESP32-S3 board via USB — it mounts as a USB drive (`CIRCUITPY`)
-2. Copy `gateway/code.py` or `endpoint/code.py` directly to `CIRCUITPY/code.py`
-3. CircuitPython auto-reloads on save; use a serial monitor (e.g., `screen /dev/ttyUSB0 115200` or Mu editor) to view output
-4. Third-party libraries must be installed separately into `CIRCUITPY/lib/` from the [CircuitPython Library Bundle](https://circuitpython.org/libraries)
+2. For gateway: copy `gateway/code.py` to `CIRCUITPY/code.py`
+3. For endpoint: copy entire `endpoint/` folder to `CIRCUITPY/` (includes code.py, config.py, hardware.py, effects/)
+4. CircuitPython auto-reloads on save; use a serial monitor (e.g., `screen /dev/ttyUSB0 115200` or Mu editor) to view output
+5. Third-party libraries must be installed separately into `CIRCUITPY/lib/` from the [CircuitPython Library Bundle](https://circuitpython.org/libraries)
 
 **Secrets/config not in repo:** Network credentials and device-specific settings go in `secrets.py` or `settings.toml` on the board (git-ignored).
 
@@ -84,18 +85,33 @@ Hardware SPI buses: primary SPI → WIZ5500 (CS=A5, RST=A0); secondary SPI → R
 
 Boot NeoPixel sequence: amber → cyan dim (ETH init) → cyan (ETH OK) / red (fail) → green dim (LoRa init) → green (LoRa OK) / amber (fail) → blue (WiFi AP) → off (running). Cyan 2s flash when Ethernet link comes up. During operation, flashes per-device colour on each command sent.
 
-### Endpoint (`endpoint/code.py`)
+### Endpoint (`endpoint/`)
 
-Key configuration at top of file: `DEVICE_ID` (unique per board, 1–5), `NUM_PIXELS`, `NEOPIXEL_PIN`.
+The endpoint code is organized into multiple modules:
 
-Key functions:
-- `apply_packet(packet)` — verifies checksum, deduplicates (1s window by command ID), updates effect state
-- `effect_*()` — 28 effect implementations called from main loop
-- `scale_color(r, g, b, intensity)` — applies intensity scaling
-- `speed_to_rate(speed_byte, slow_val, fast_val)` — maps speed byte to animation interval
-- `hsv_to_rgb(h, s, v)` — used by rainbow/color-cycling effects
+```
+endpoint/
+├── code.py           # Main entry, main loop
+├── config.py         # Configuration loading from settings.toml
+├── hardware.py       # Hardware initialization
+└── effects/
+    ├── __init__.py   # Base Effect classes, EFFECTS registry, helpers
+    ├── simple.py     # Solid, Fade, Strobe, Heartbeat, Alarm, ColorWipe, Ripple
+    ├── chase.py      # Chase, Marquee, TheaterChase, RainbowChase, Scanner
+    ├── sparkle.py    # Sparkle, Twinkle, Confetti, Bubbles, Flicker
+    ├── fire.py       # Fire, Campfire
+    ├── weather.py    # Rainbow, Lightning, Aurora
+    └── wave.py       # Wave, WavePastel, Comet, ColorWipe
+```
 
-Main loop runs at ~100fps (10ms sleep), receiving LoRa packets non-blocking (`timeout=0.0`) and calling the current effect function each iteration.
+Key configuration in `settings.toml`: `DEVICE_ID` (1-5), `NUM_PIXELS`, `NEOPIXEL_PIN`.
+
+Each effect is a class inheriting from a base (`Simple`, `Chase`, `Fire`, `Sparkle`, `Rainbow`) with:
+- `__init__(num_pixels)` - initialize state
+- `reset()` - called on preset change
+- `update(pixels, r, g, b, intensity, speed)` - called every frame
+
+Main loop runs at ~100fps (10ms sleep).
 
 ### DMX Channel Layout (per device, 7 channels)
 
@@ -114,7 +130,10 @@ Main loop runs at ~100fps (10ms sleep), receiving LoRa packets non-blocking (`ti
 | File | Purpose |
 |------|---------|
 | `gateway/code.py` | Gateway firmware: sACN/ArtNet → LoRa |
-| `endpoint/code.py` | Endpoint firmware: LoRa → NeoPixel effects |
+| `endpoint/code.py` | Endpoint main loop |
+| `endpoint/config.py` | Endpoint configuration loading |
+| `endpoint/hardware.py` | Endpoint hardware init |
+| `endpoint/effects/` | Effect classes |
 | `docs/eos_patch_guide.md` | Eos console patch configuration |
 | `wiring/gateway_wiring.html` | Interactive GPIO wiring diagram (gateway) |
 | `wiring/endpoint_wiring.html` | Interactive GPIO wiring diagram (endpoint) |
