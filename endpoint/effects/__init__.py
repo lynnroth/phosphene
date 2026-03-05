@@ -99,7 +99,7 @@ from .chase import (
     RainbowChase as ChaseRainbow,
     Scanner,
 )
-from .sparkle import SparkleEffect, Twinkle, Confetti, Bubbles, Flicker
+from .sparkle import SparkleEffect, Twinkle, Candle, Confetti, Bubbles, Flicker
 from .fire import FireEffect, Campfire
 from .weather import RainbowEffect, Lightning, Aurora
 from .wave import Wave, WavePastel, Comet, ColorWipe as WaveWipe
@@ -118,7 +118,7 @@ EFFECTS = {
     9: RainbowEffect,
     10: Lightning,
     11: Marquee,
-    12: FireEffect,  # Candle - uses fire engine with different params
+    12: Candle,
     13: ColorWipe,
     14: Heartbeat,
     15: Alarm,

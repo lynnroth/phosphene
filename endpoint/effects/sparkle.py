@@ -66,6 +66,42 @@ class Twinkle(Sparkle):
         pixels.show()
 
 
+class Candle(Sparkle):
+    """Gentle per-pixel flicker like candlelight.
+
+    Warmer and subtler than fire. Each pixel flickers independently.
+
+    Args:
+        r, g, b: Color channels (0-255) - warm yellow-orange default
+        intensity: Overall brightness (0-255)
+        speed: Controls flicker rate (0=slow, 255=fast)
+    """
+
+    def reset(self):
+        self.levels = [random.uniform(0.5, 1.0) for _ in range(self.num_pixels)]
+        self.targets = [random.uniform(0.5, 1.0) for _ in range(self.num_pixels)]
+        self.speeds = [random.uniform(0.05, 0.15) for _ in range(self.num_pixels)]
+
+    def update(self, pixels, r, g, b, intensity, speed):
+        r, g, b = scale_color(r, g, b, intensity)
+        speed_factor = speed_to_rate(speed, 0.5, 4.0)
+
+        for i in range(self.num_pixels):
+            diff = self.targets[i] - self.levels[i]
+            self.levels[i] += diff * self.speeds[i] * speed_factor
+
+            if abs(diff) < 0.03:
+                self.targets[i] = random.uniform(0.6, 1.0)
+                self.speeds[i] = random.uniform(0.04, 0.12)
+                if random.randint(0, 30) == 0:
+                    self.targets[i] = random.uniform(0.25, 0.5)
+
+            lvl = self.levels[i]
+            pixels[i] = (int(r * lvl), int(g * lvl), int(b * lvl))
+
+        pixels.show()
+
+
 class Confetti(Sparkle):
     """Random pixels light up in random colors, constantly refreshing.
 
