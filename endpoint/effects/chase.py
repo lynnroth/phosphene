@@ -75,6 +75,26 @@ class TheaterChase(Chase):
         speed: Controls chase rate (0=slow, 255=fast)
     """
 
+    def update(self, pixels, r, g, b, intensity, speed):
+        spacing = 3
+        ticks_per_step = max(1, int(speed_to_rate(speed, 15, 1)))
+
+        r, g, b = scale_color(r, g, b, intensity)
+        bg_r, bg_g, bg_b = r // 6, g // 6, b // 6
+
+        for i in range(self.num_pixels):
+            if (i + self.position) % spacing == 0:
+                pixels[i] = (r, g, b)
+            else:
+                pixels[i] = (bg_r, bg_g, bg_b)
+
+        pixels.show()
+
+        self.tick += 1
+        if self.tick >= ticks_per_step:
+            self.position = (self.position + 1) % spacing
+            self.tick = 0
+
 
 class RainbowChase(Chase):
     """Every-third-pixel marquee using rainbow colors.
