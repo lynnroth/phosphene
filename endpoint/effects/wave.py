@@ -4,24 +4,26 @@ from . import Effect, Rainbow, scale_color, hsv_to_rgb
 
 
 class Wave(Rainbow):
-    """A smooth sine wave of brightness rolls down the strip."""
+    """A smooth sine wave of brightness rolls down the strip.
 
-    def update(self, pixels, r, g, b, intensity, speed):
-        step = speed_to_rate(speed, 0.02, 0.3)
-        self.offset = (self.offset + step) % (2 * math.pi)
-
-        r, g, b = scale_color(r, g, b, intensity)
-
-        for i in range(self.num_pixels):
-            phase = self.offset + (i / self.num_pixels) * 2 * math.pi
-            lvl = (math.sin(phase) + 1.0) / 2.0
-            pixels[i] = (int(r * lvl), int(g * lvl), int(b * lvl))
-
-        pixels.show()
+    Args:
+        r, g, b: Color channels (0-255)
+        intensity: Peak brightness (0-255)
+        speed: Controls wave travel speed (0=slow, 255=fast)
+    """
 
 
 class WavePastel(Rainbow):
-    """Rainbow hues with traveling sine wave, saturation follows brightness."""
+    """Rainbow hues with traveling sine wave, saturation follows brightness.
+
+    Saturation rises at the wave crest and drops to near-white at the trough,
+    keeping all colors soft and pastel. Never goes fully dark.
+
+    Args:
+        r, g, b: Ignored - hues cycle through full spectrum
+        intensity: Peak brightness (0-255)
+        speed: Controls pulse travel (0=slow, 255=fast)
+    """
 
     def reset(self):
         self.offset = 0.0
@@ -47,7 +49,15 @@ class WavePastel(Rainbow):
 
 
 class Comet(Rainbow):
-    """A bright comet with a tapering tail shoots across the strip and loops."""
+    """A bright comet with a tapering tail shoots across the strip and loops.
+
+    Single comet, one-shot then dark, re-triggers on next cue.
+
+    Args:
+        r, g, b: Color channels (0-255)
+        intensity: Peak brightness (0-255)
+        speed: Controls travel speed (0=slow, 255=fast)
+    """
 
     def reset(self):
         self.position = 0.0
@@ -78,7 +88,15 @@ class Comet(Rainbow):
 
 
 class ColorWipe(Effect):
-    """Pixels fill in one by one from one end, then clear from one end."""
+    """Pixels fill in one by one from one end, then clear from one end.
+
+    Great for slow reveals.
+
+    Args:
+        r, g, b: Color channels (0-255)
+        intensity: Peak brightness (0-255)
+        speed: Controls wipe rate (0=slow, 255=fast)
+    """
 
     def reset(self):
         self.position = 0

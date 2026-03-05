@@ -2,7 +2,13 @@ from . import Effect, Chase, scale_color
 
 
 class ChaseEffect(Chase):
-    """A moving block of lit pixels travels along the strip."""
+    """A moving block of lit pixels travels along the strip.
+
+    Args:
+        r, g, b: Color channels (0-255)
+        intensity: Peak brightness (0-255)
+        speed: Controls travel rate (0=slow, 255=fast)
+    """
 
     def update(self, pixels, r, g, b, intensity, speed):
         length = max(3, self.num_pixels // 8)
@@ -29,7 +35,13 @@ class ChaseEffect(Chase):
 
 
 class Marquee(Chase):
-    """Classic theater marquee: every Nth pixel lit, block scrolls."""
+    """Classic theater marquee: every Nth pixel lit, block scrolls.
+
+    Args:
+        r, g, b: Color channels (0-255)
+        intensity: Peak brightness (0-255)
+        speed: Controls scroll rate (0=slow, 255=fast)
+    """
 
     def update(self, pixels, r, g, b, intensity, speed):
         spacing = 3
@@ -53,31 +65,25 @@ class Marquee(Chase):
 
 
 class TheaterChase(Chase):
-    """Classic theater chase: every 3rd pixel lit, offset advances each step."""
+    """Classic theater chase: every 3rd pixel lit, offset advances each step.
 
-    def update(self, pixels, r, g, b, intensity, speed):
-        spacing = 3
-        ticks_per_step = max(1, int(speed_to_rate(speed, 15, 1)))
+    Like marquee but with a dim background fill.
 
-        r, g, b = scale_color(r, g, b, intensity)
-        bg_r, bg_g, bg_b = r // 6, g // 6, b // 6
-
-        for i in range(self.num_pixels):
-            if (i + self.position) % spacing == 0:
-                pixels[i] = (r, g, b)
-            else:
-                pixels[i] = (bg_r, bg_g, bg_b)
-
-        pixels.show()
-
-        self.tick += 1
-        if self.tick >= ticks_per_step:
-            self.position = (self.position + 1) % spacing
-            self.tick = 0
+    Args:
+        r, g, b: Color channels (0-255)
+        intensity: Peak brightness (0-255)
+        speed: Controls chase rate (0=slow, 255=fast)
+    """
 
 
 class RainbowChase(Chase):
-    """Every-third-pixel marquee using rainbow colors."""
+    """Every-third-pixel marquee using rainbow colors.
+
+    Args:
+        r, g, b: Ignored - hues cycle through full spectrum
+        intensity: Peak brightness (0-255)
+        speed: Controls chase rate (0=slow, 255=fast)
+    """
 
     def update(self, pixels, r, g, b, intensity, speed):
         from . import hsv_to_rgb
@@ -105,7 +111,13 @@ class RainbowChase(Chase):
 
 
 class Scanner(Chase):
-    """Cylon/Knight Rider eye: a bright segment bounces back and forth."""
+    """Cylon/Knight Rider eye: a bright segment bounces back and forth.
+
+    Args:
+        r, g, b: Color channels (0-255)
+        intensity: Peak brightness (0-255)
+        speed: Controls travel speed (0=slow, 255=fast)
+    """
 
     def reset(self):
         self.position = 0

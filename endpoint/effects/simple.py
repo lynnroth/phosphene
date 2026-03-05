@@ -3,7 +3,13 @@ from . import Effect, Simple, scale_color
 
 
 class Solid(Simple):
-    """Steady color at current intensity."""
+    """Steady color at current intensity.
+
+    Args:
+        r, g, b: Color channels (0-255)
+        intensity: Overall brightness (0-255)
+        speed: Ignored for solid effect
+    """
 
     def update(self, pixels, r, g, b, intensity, speed):
         r, g, b = scale_color(r, g, b, intensity)
@@ -12,7 +18,13 @@ class Solid(Simple):
 
 
 class Fade(Effect):
-    """Whole strip breathes in and out between full color and black."""
+    """Whole strip breathes in and out between full color and black.
+
+    Args:
+        r, g, b: Color channels (0-255)
+        intensity: Peak brightness (0-255)
+        speed: Controls breath cycle time (0=slow, 255=fast)
+    """
 
     def reset(self):
         self.direction = 1
@@ -35,7 +47,13 @@ class Fade(Effect):
 
 
 class Strobe(Simple):
-    """Hard on/off flash."""
+    """Hard on/off flash.
+
+    Args:
+        r, g, b: Color channels (0-255) - white is classic
+        intensity: Peak brightness when on (0-255)
+        speed: Controls flash rate (0=slow ~2Hz, 255=fast ~30Hz)
+    """
 
     def reset(self):
         self.on = False
@@ -57,7 +75,16 @@ class Strobe(Simple):
 
 
 class Heartbeat(Effect):
-    """Double-pulse (lub-dub) that repeats."""
+    """Double-pulse (lub-dub) that repeats.
+
+    Looks great in red for a literal heartbeat, but works in any color
+    for a dramatic rhythmic pulse.
+
+    Args:
+        r, g, b: Color channels (0-255)
+        intensity: Peak brightness (0-255)
+        speed: Controls BPM (0=slow, 255=fast)
+    """
 
     def reset(self):
         self.phase = 0.0
@@ -84,7 +111,16 @@ class Heartbeat(Effect):
 
 
 class Alarm(Simple):
-    """Fast two-color alternating flash."""
+    """Fast two-color alternating flash.
+
+    Great for warnings, emergencies, sirens. Alternates between the
+    RGB color and its complement (R<->B flip).
+
+    Args:
+        r, g, b: Color channels (0-255) - e.g., red alarm alternates with blue
+        intensity: Peak brightness (0-255)
+        speed: Controls alternation rate (0=slow, 255=fast)
+    """
 
     def reset(self):
         self.phase = False
@@ -107,7 +143,15 @@ class Alarm(Simple):
 
 
 class ColorWipe(Effect):
-    """Pixels fill in one by one from one end, then clear from one end."""
+    """Pixels fill in one by one from one end, then clear from one end.
+
+    Great for slow reveals.
+
+    Args:
+        r, g, b: Color channels (0-255)
+        intensity: Peak brightness (0-255)
+        speed: Controls wipe rate (0=slow, 255=fast)
+    """
 
     def reset(self):
         self.position = 0
@@ -136,7 +180,15 @@ class ColorWipe(Effect):
 
 
 class Ripple(Effect):
-    """A brightness pulse expands outward from the center of the strip."""
+    """A brightness pulse expands outward from the center of the strip.
+
+    Concentric pulses expand outward from center.
+
+    Args:
+        r, g, b: Color channels (0-255)
+        intensity: Peak brightness (0-255)
+        speed: Controls pulse speed (0=slow, 255=fast)
+    """
 
     def reset(self):
         self.pos = 0

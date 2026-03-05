@@ -3,7 +3,13 @@ from . import Effect, Sparkle, scale_color
 
 
 class SparkleEffect(Sparkle):
-    """Random pixels flash bright, rest stay dark."""
+    """Random pixels flash bright, rest stay dark.
+
+    Args:
+        r, g, b: Color channels (0-255)
+        intensity: Peak brightness (0-255)
+        speed: Controls how many pixels sparkle per frame (0=slow fade, 255=fast)
+    """
 
     def update(self, pixels, r, g, b, intensity, speed):
         r, g, b = scale_color(r, g, b, intensity)
@@ -27,7 +33,15 @@ class SparkleEffect(Sparkle):
 
 
 class Twinkle(Sparkle):
-    """Each pixel has its own independent brightness that slowly wanders."""
+    """Each pixel has its own independent brightness that slowly wanders.
+
+    Creates an organic, gentle twinkle over the base color.
+
+    Args:
+        r, g, b: Color channels (0-255)
+        intensity: Peak brightness (0-255)
+        speed: Controls how quickly individual pixels change (0=slow, 255=fast)
+    """
 
     def reset(self):
         self.levels = [0.0] * self.num_pixels
@@ -53,7 +67,15 @@ class Twinkle(Sparkle):
 
 
 class Confetti(Sparkle):
-    """Random pixels light up in random colors, constantly refreshing."""
+    """Random pixels light up in random colors, constantly refreshing.
+
+    Party mode with random hues.
+
+    Args:
+        r, g, b: Ignored - uses random colors
+        intensity: Peak brightness (0-255)
+        speed: Controls how fast new confetti appears (0=slow, 255=fast)
+    """
 
     def reset(self):
         self.tick = 0
@@ -81,7 +103,13 @@ class Confetti(Sparkle):
 
 
 class Bubbles(Sparkle):
-    """Random pixels bloom up from darkness and pop, like bubbles rising."""
+    """Random pixels bloom up from darkness and pop, like bubbles rising.
+
+    Args:
+        r, g, b: Color channels (0-255)
+        intensity: Peak brightness (0-255)
+        speed: Controls how quickly new bubbles appear and rise (0=slow, 255=fast)
+    """
 
     def reset(self):
         self.levels = [0.0] * self.num_pixels
@@ -114,7 +142,15 @@ class Bubbles(Sparkle):
 
 
 class Flicker(Sparkle):
-    """Like a bad fluorescent tube. Random intensity drops per pixel."""
+    """Like a bad fluorescent tube or dying torch.
+
+    Random intensity drops per pixel.
+
+    Args:
+        r, g, b: Color channels (0-255)
+        intensity: Baseline brightness (0-255)
+        speed: Controls flicker frequency (0=slow, 255=fast)
+    """
 
     def reset(self):
         self.levels = [1.0] * self.num_pixels

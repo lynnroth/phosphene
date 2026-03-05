@@ -3,23 +3,23 @@ from . import Effect, Rainbow, scale_color, hsv_to_rgb
 
 
 class RainbowEffect(Rainbow):
-    """Full rainbow cycles across the strip."""
+    """Full rainbow cycles across the strip.
 
-    def update(self, pixels, r, g, b, intensity, speed):
-        step = speed_to_rate(speed, 0.001, 0.02)
-        self.offset = (self.offset + step) % 1.0
-
-        scale = intensity / 255.0
-        for i in range(self.num_pixels):
-            hue = (self.offset + i / self.num_pixels) % 1.0
-            rgb = hsv_to_rgb(hue, 1.0, scale)
-            pixels[i] = rgb
-
-        pixels.show()
+    Args:
+        r, g, b: Ignored - cycles through full hue spectrum
+        intensity: Peak brightness (0-255)
+        speed: Controls rotation rate (0=slow, 255=fast)
+    """
 
 
 class Lightning(Effect):
-    """Random white flashes of varying brightness and duration against a dark sky."""
+    """Random white flashes of varying brightness and duration against a dark sky.
+
+    Args:
+        r, g, b: Color channels (0-255) - tints the lightning (white=255,255,255)
+        intensity: Peak flash brightness (0-255)
+        speed: Controls how frequently strikes happen (0=rare, 255=frequent)
+    """
 
     def reset(self):
         self.on = False
@@ -56,7 +56,13 @@ class Lightning(Effect):
 
 
 class Aurora(Effect):
-    """Northern lights: slow drifting hues create an organic, dreamy atmosphere."""
+    """Northern lights: slow drifting hues create an organic, dreamy atmosphere.
+
+    Args:
+        r, g, b: Ignored - uses drifting hues
+        intensity: Peak brightness (0-255)
+        speed: Controls drift rate (0=slow, 255=fast)
+    """
 
     def reset(self):
         self.hues = [random.random() for _ in range(self.num_pixels)]

@@ -3,7 +3,15 @@ from . import Effect, Fire, scale_color
 
 
 class FireEffect(Fire):
-    """Fire simulation using per-pixel heat values."""
+    """Fire simulation using per-pixel heat values.
+
+    Color channel biases the flame hue (default warm = R:255 G:80 B:0).
+
+    Args:
+        r, g, b: Color channels (0-255) - biases flame hue
+        intensity: Caps overall brightness (0-255)
+        speed: Controls flame intensity/height (0=tall flames, 255=short)
+    """
 
     def update(self, pixels, r, g, b, intensity, speed):
         cooling = int(speed_to_rate(speed, 80, 30))
@@ -46,7 +54,15 @@ class FireEffect(Fire):
 
 
 class Campfire(Fire):
-    """Softer fire, cooler and more amber."""
+    """Softer fire, cooler and more amber.
+
+    Great for lanterns and warm prop lighting.
+
+    Args:
+        r, g, b: Ignored - uses warm amber palette
+        intensity: Caps overall brightness (0-255)
+        speed: Controls flame intensity (0=tall flames, 255=short)
+    """
 
     def update(self, pixels, r, g, b, intensity, speed):
         cooling = int(speed_to_rate(speed, 100, 50))
